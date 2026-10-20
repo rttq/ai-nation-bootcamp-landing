@@ -1,0 +1,88 @@
+---
+// The one <head> for the MINIMAL STEEL pages — see REDESIGN-PLAN.md phase A3.
+//
+// Owns the head only, NOT the nav/footer: /teams, /community and /verify each
+// keep their own navigation shape, because the home nav's links are all
+// in-page anchors that exist on `/` alone.
+//
+// Before this file the Metrika snippet was pasted into 7 pages and the
+// @fontsource list into 5, with four different subset combinations.
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
+// Кириллические начертания — предзагрузкой. Запрос за шрифтом уходит только
+// после разбора CSS, а первая отрисовка случается раньше: браузер рисует
+// подстановочным, потом подставляет наш, и заголовок первого экрана менял
+// число строк — сдвиг макета 0.20 при пороге 0.1. Адрес с хешем берём у
+// сборщика, руками его не написать.
+import interCyrillic from '@fontsource-variable/inter/files/inter-cyrillic-wght-normal.woff2?url';
+import monoCyrillic from '@fontsource-variable/jetbrains-mono/files/jetbrains-mono-cyrillic-wght-normal.woff2?url';
+import '../styles/tokens.css';
+import '../styles/base.css';
+import '../styles/primitives.css';
+import '../styles/components.css';
+
+interface Props {
+  title: string;
+  /** Сниппет в выдаче. Без него поисковик собирает его сам из случайного
+   *  куска страницы — на лендинге это обычно пункт меню. */
+  description?: string;
+  noindex?: boolean;
+  /** JSON-LD страницы. Отдаётся как есть, по одному <script> на объект. */
+  structuredData?: Record<string, unknown>[];
+  /** Картинка для превью в соцсетях, путь от корня. */
+  image?: string;
+  /** На странице есть форма заявки idx.xl.ru — поднять соединение заранее.
+   *  Не по умолчанию: /verify и /community виджета не несут, и preconnect
+   *  к чужому хосту им обошёлся бы в неиспользованное TLS-рукопожатие. */
+  widget?: boolean;
+}
+const {
+  title,
+  description,
+  noindex = false,
+  structuredData = [],
+  image = '/dev/og-dev.png',
+  widget = false,
+} = Astro.props;
+
+// Адрес страницы одной строкой. Бакет отдаёт одну и ту же страницу по
+// /dev/, /dev и /dev/index.html — без canonical робот считает это тремя
+// разными документами и делит между ними сигналы.
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preload" href={interCyrillic} as="font" type="font/woff2" crossorigin />
+<link rel="preload" href={monoCyrillic} as="font" type="font/woff2" crossorigin />
+{/* Сам скрипт формы по-прежнему грузится лениво — по скроллу или по клику.
+    Здесь только DNS и TLS, чтобы первый клик не оплачивал ещё и рукопожатие. */}
+{widget && <link rel="preconnect" href="https://idx.xl.ru" crossorigin />}
+<title>{title}</title>
+{description && <meta name="description" content={description} />}
+<meta name="robots" content={noindex ? "noindex, follow" : "index, follow, max-image-preview:large, max-snippet:-1"} />
+<link rel="canonical" href={canonical.href} />
+<meta property="og:type" content="website" />
+<meta property="og:locale" content="ru_RU" />
+<meta property="og:site_name" content="НЭЙШН" />
+<meta property="og:title" content={title} />
+{description && <meta property="og:description" content={description} />}
+<meta property="og:url" content={canonical.href} />
+<meta property="og:image" content={new URL(image, Astro.site).href} />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content={new URL(image, Astro.site).href} />
+<meta name="twitter:title" content={title} />
+{description && <meta name="twitter:description" content={description} />}
+<link rel="icon" type="image/svg+xml" href="/dev/favicon.svg">
+{!noindex && structuredData.map((item) => (
+  <script type="application/ld+json" is:inline set:html={JSON.stringify(item)} />
+))}
+</head>
+<body>
+<slot />
+</body>
+</html>

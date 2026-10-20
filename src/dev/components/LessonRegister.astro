@@ -1,0 +1,162 @@
+---
+// Форма регистрации на открытый урок: имя, почта, телефон, согласие. Второй лид-магнит
+// рядом с диагностикой (Diagnostic.astro), независимый от неё: здесь без вопросов и
+// сразу доступ. Контакт уходит в CRM AXL через Cloud Function `axl-lead` (токен AXL
+// живёт в Lockbox, в браузер не попадает), затем человека переводит на урок.
+//
+// Модалку открывает кнопка в полосе `LessonStrip variant="lesson"` (в конце программы):
+// общий src/dev/scripts/common.js ловит `data-modal-open="lesson-register"`.
+// Страница, где стоит полоса, обязана подключать и этот компонент.
+//
+// Тег в AXL свой: `source: 'lesson_form'` → `открытый_урок`, а у диагностики
+// `source: 'diagnostic'` → `диагностика`; прогревы двух магнитов ведутся раздельно.
+// Соответствие ключей и тегов — карта TAGS в functions/axl-lead/index.js. Кроме тега
+// их различает первая строка комментария: «Регистрация на открытый урок…» или «Диагностика…».
+//
+// Доступ мягкий: после отправки ставим `lessonAccess = 'form'` в localStorage, а
+// /dev/agents-lesson/ без неё возвращает на диагностику. Это не защита — ссылка на видео
+// лежит в коде страницы урока. Значение 'form' (а не '1', как у диагностики) нужно, чтобы
+// верхняя полоса не считала человека прошедшим диагностику, которую он не проходил.
+const DEV_COUNTER = 0; // номер счётчика Яндекс Метрики; без счётчика цель просто не отправляется
+import { LEAD_URL, LESSON_URL } from '../data/lesson';
+---
+<div class="modal" data-js="modal" data-modal="lesson-register" hidden>
+  <div class="modal__backdrop" data-js="modal-close"></div>
+  <div
+    class="modal__dialog reg"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Регистрация на открытый урок"
+    tabindex="-1"
+    data-reg
+    data-lead-url={LEAD_URL}
+    data-lesson-url={LESSON_URL}
+    data-counter={DEV_COUNTER}
+  >
+    <button type="button" class="modal__x" data-js="modal-close" aria-label="Закрыть">✕</button>
+    <p class="modal__eyebrow">Открытый урок</p>
+    <form class="reg__form ym-disable-keys" data-reg-form novalidate>
+      <h2 class="modal__title">Куда открыть доступ?</h2>
+      <p class="modal__lead">Запись урока откроется сразу после отправки формы.</p>
+      <label class="field">
+        <span class="label">Имя</span>
+        <input class="field__input" type="text" name="name" autocomplete="given-name" required />
+      </label>
+      <label class="field">
+        <span class="label">Почта</span>
+        <input class="field__input" type="email" name="email" autocomplete="email" inputmode="email" required />
+      </label>
+      <label class="field">
+        <span class="label">Телефон</span>
+        <input class="field__input" type="tel" name="phone" autocomplete="tel" inputmode="tel" required />
+      </label>
+      <input class="reg__trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
+      <label class="reg__consent">
+        <input type="checkbox" name="consent" required />
+        <span>
+          Согласен на&nbsp;обработку персональных данных и&nbsp;с{' '}
+          <a href="#" target="_blank" rel="noopener">политикой конфиденциальности</a>
+        </span>
+      </label>
+      <p class="field__error" data-reg-error role="alert" hidden></p>
+      <button type="submit" class="btn btn--solid reg__submit">Получить доступ к уроку</button>
+    </form>
+  </div>
+</div>
+
+<style>
+  .reg{max-width:560px}
+  .reg [hidden]{display:none}
+  .reg__form{display:flex;flex-direction:column;gap:var(--sp-20)}
+  .reg__form .modal__lead{margin-top:0}
+  .reg__submit{align-self:stretch}
+  .reg__submit:disabled{opacity:.5;cursor:default}
+
+  /* ловушка для ботов: человек поле не видит и не достаёт до него Tab-ом */
+  .reg__trap{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+
+  .reg__consent{display:flex;gap:var(--sp-12);align-items:flex-start;font-size:var(--fs-14);line-height:21px;color:var(--c-muted)}
+  .reg__consent input{flex-shrink:0;width:18px;height:18px;margin:2px 0 0;accent-color:var(--c-ink)}
+  .reg__consent a{color:var(--c-ink);text-decoration:underline;text-underline-offset:3px}
+
+  @media (max-width:768px){
+    .reg__form .modal__title{font-size:var(--fs-24);letter-spacing:-.5px}
+  }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-reg]');
+
+  if (root) {
+    const form = root.querySelector<HTMLFormElement>('[data-reg-form]')!;
+    const errorEl = root.querySelector<HTMLElement>('[data-reg-error]')!;
+    const submit = form.querySelector<HTMLButtonElement>('[type="submit"]')!;
+    const { leadUrl = '', lessonUrl = '', counter = '' } = root.dataset;
+
+    // Цель Метрики. Редирект сразу после reachGoal убивает запрос, поэтому ждём
+    // callback; если tag.js заблокирован, callback не придёт — идём по таймеру.
+    // Цель в интерфейсе Метрики пока не заведена: её заведёт подрядчик.
+    const goal = (name: string, done: () => void) => {
+      const ym = (window as unknown as { ym?: (...args: unknown[]) => void }).ym;
+      let fired = false;
+      const finish = () => { if (!fired) { fired = true; done(); } };
+      if (typeof ym !== 'function') return finish();
+      ym(Number(counter), 'reachGoal', name, undefined, finish);
+      setTimeout(finish, 1000);
+    };
+
+    const showError = (text: string, field?: HTMLInputElement) => {
+      errorEl.textContent = text;
+      errorEl.hidden = !text;
+      form.querySelectorAll('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'));
+      if (field) { field.setAttribute('aria-invalid', 'true'); field.focus(); }
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
+      const name = field('name').value.trim();
+      const email = field('email').value.trim();
+      const phone = field('phone').value.trim();
+      const digits = phone.replace(/\D/g, '').length;
+
+      if (!name) return showError('Укажите имя.', field('name'));
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return showError('Проверьте адрес почты.', field('email'));
+      if (digits < 10 || digits > 15) return showError('Проверьте номер телефона.', field('phone'));
+      if (!field('consent').checked) return showError('Нужно согласие на обработку персональных данных.', field('consent'));
+      showError('');
+
+      // Первая строка отличает эту заявку от диагностики; страница — откуда человек пришёл.
+      const comment = [
+        `Регистрация на открытый урок (форма в конце программы), ${new Date().toLocaleDateString('ru-RU')}`,
+        `Страница: ${location.pathname}`,
+      ].join('\n');
+      const query = new URLSearchParams(location.search);
+
+      submit.disabled = true;
+      try {
+        const res = await fetch(leadUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name, email, phone, comment,
+            source: 'lesson_form', // функция по этому ключу ставит новому контакту тег «открытый_урок»
+            website: field('website').value,
+            utmSource: query.get('utm_source'),
+            utmMedium: query.get('utm_medium'),
+            utmCampaign: query.get('utm_campaign'),
+            utmTerm: query.get('utm_term'),
+            utmContent: query.get('utm_content'),
+          }),
+        });
+        if (!res.ok) throw new Error(String(res.status));
+      } catch {
+        submit.disabled = false;
+        return showError('Не получилось отправить. Проверьте соединение и попробуйте ещё раз.');
+      }
+
+      try { localStorage.setItem('lessonAccess', 'form'); } catch { /* урок откроется и без отметки, см. agents-lesson */ }
+      goal('lesson_form_done', () => location.assign(lessonUrl));
+    });
+  }
+</script>

@@ -1,0 +1,48 @@
+---
+// Диагностика AI-разработки: вопросы, форма контакта, результат с профилем и
+// оффером. Вход — полоска LessonStrip на /dev/ и /dev/special/. Всё, что внутри
+// (вопросы, подсчёт, отправка в CRM AXL), — в src/dev/components/Diagnostic.astro.
+//
+// noindex намеренно: это шаг воронки, а не посадочная. В sitemap.xml.ts страницы
+// нет по той же причине (_check-policy.mjs не пропускает карту с noindex-страницей).
+import BaseLayout from '../../dev/layouts/BaseLayout.astro';
+import Diagnostic from '../../dev/components/Diagnostic.astro';
+---
+
+<BaseLayout
+  noindex
+  title="Диагностика AI-разработки — AI DRIVEN РАЗРАБОТКА"
+  description="Девять вопросов о том, как AI участвует в вашей разработке: профиль на сегодня, два главных вектора роста и запись открытого урока."
+>
+
+<header class="subnav">
+  <a class="lockup__name" href="/dev/">НЭЙШН</a>
+  <span class="subnav__dot" aria-hidden="true"></span>
+  <span class="subnav__tag">Диагностика</span>
+  <a class="subnav__back" href="/dev/">← На главную</a>
+</header>
+
+<main id="main-content">
+  <section class="section section--bg">
+    <div class="section__inner">
+      <Diagnostic />
+    </div>
+  </section>
+</main>
+
+<footer class="subfooter">
+  <span>Naition // Диагностика AI-разработки</span>
+  <div class="subfooter__links">
+    <a href="/dev/">ai-nation.ru</a>
+  </div>
+</footer>
+
+<style>
+  /* Вступление короче экрана: без этого под подвалом остаётся белая полоса.
+     Растягиваем main, подвал уходит ко дну. На вопросах и результате (выше экрана) ничего не меняется. */
+  :global(body){min-height:100svh;display:flex;flex-direction:column}
+  main{flex:1;display:flex;flex-direction:column}
+  main > .section{flex:1}
+</style>
+
+</BaseLayout>

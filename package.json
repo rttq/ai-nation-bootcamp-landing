@@ -1,0 +1,22 @@
+{
+  "name": "ai-nation-bootcamp-landing",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check:diagnostic": "node --experimental-strip-types --no-warnings _check-diagnostic.mjs"
+  },
+  "dependencies": {
+    "astro": "^7.2.1",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0"
+  },
+  "devDependencies": {
+    "qrcode-generator": "^2.0.4"
+  }
+}

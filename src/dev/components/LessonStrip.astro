@@ -1,0 +1,121 @@
+---
+// Тёмная полоса на /dev/ и /dev/special/, две версии (проп `variant`). Это два независимых
+// лид-магнита, у каждого свой вход:
+//
+//  entry (по умолчанию) — под первым экраном. Продаёт диагностику (профиль, карта по пяти
+//    направлениям, два вектора роста), а подарок за прохождение упоминает одной фразой и
+//    НЕ называет: что за подарок, человек узнаёт на экране результата (Diagnostic.astro).
+//    Кнопка «Пройти диагностику» — ссылка на /dev/diagnostika/.
+//  lesson — в конце программы, сразу после секции #curriculum. Про сам открытый урок и
+//    обычную регистрацию: кнопка «Получить доступ к уроку» открывает форму
+//    (LessonRegister.astro, модалка), после отправки сразу переход на урок. Диагностики здесь нет.
+//
+// Страница с версией lesson обязана подключать и <LessonRegister />.
+// Абзац про урок взят со страницы /dev/agents-lesson/ — правьте вместе с ней.
+import { QUESTIONS } from '../data/diagnostic';
+import { LESSON_URL } from '../data/lesson';
+
+interface Props {
+  variant?: 'entry' | 'lesson';
+}
+const { variant = 'entry' } = Astro.props;
+const lesson = variant === 'lesson';
+const total = QUESTIONS.length;
+---
+
+<section class="lesson-strip" aria-label={lesson ? 'Открытый урок' : 'Диагностика AI-разработки'}>
+  <div class="lesson-strip__inner">
+    {lesson ? (
+      <>
+        <div class="lesson-strip__body">
+          {/* h3 и .module__title — как у заголовков модулей программы выше. */}
+          <h3 class="module__title lesson-strip__title">Открытый урок по разработке своего агента</h3>
+          <p class="lesson-strip__text">Запись открытого урока: паттерны LLM-агентов и&nbsp;«12&nbsp;факторов» HumanLayer с демонстрацией практики. Собираем своего агента на&nbsp;OpenAI Responses API со&nbsp;structured output, function calling, MCP и&nbsp;скиллами.</p>
+          </div>
+        <div class="lesson-strip__action">
+          <button type="button" class="btn btn--solid lesson-strip__btn" data-modal-open="lesson-register" data-lesson-register data-lesson-url={LESSON_URL}>Получить доступ к уроку</button>
+          <p class="lesson-strip__meta" data-lesson-meta data-done="Вы уже зарегистрированы">Запись откроется сразу</p>
+        </div>
+      </>
+    ) : (
+      <>
+        <div class="lesson-strip__body">
+          {/* h3 и .module__title — как у заголовка «Как проходят уроки» ниже по странице. */}
+          <h3 class="module__title lesson-strip__title">Узнайте свой профиль в <span class="nowrap">AI-разработке</span> за&nbsp;3&nbsp;минуты</h3>
+          <p class="lesson-strip__text">{total} вопросов о том, как AI участвует в вашей работе. На выходе карта по пяти направлениям (спеки и&nbsp;тесты, контекст, агенты, RAG, legacy), ваш профиль и&nbsp;два главных вектора роста. А после результата вас ждёт подарок.</p>
+        </div>
+        <div class="lesson-strip__action">
+          <a class="btn btn--solid lesson-strip__btn" href="/dev/diagnostika/" data-lesson-link data-lesson-url={LESSON_URL}>Пройти диагностику</a>
+          <p class="lesson-strip__meta" data-lesson-meta data-done="Вы уже прошли диагностику">{total} вопросов · около 3 минут</p>
+        </div>
+      </>
+    )}
+  </div>
+</section>
+
+<style>
+  .lesson-strip{background:var(--c-ink);padding:var(--sp-28) var(--pad-x)}
+  /* /dev/: следом идёт такая же тёмная бегущая строка — разделяем линией,
+     иначе две полосы сливаются в одну. На /special/ следом светлая секция. */
+  .lesson-strip + :global(.marquee){border-top:1px solid var(--c-field)}
+
+  .lesson-strip__inner{
+    max-width:var(--content);margin:0 auto;
+    display:flex;align-items:center;justify-content:space-between;gap:var(--sp-40);
+  }
+  .lesson-strip__body{display:flex;flex-direction:column;gap:var(--sp-14);max-width:860px}
+  /* .module__title по умолчанию тёмный: на чёрной полосе нужен светлый. */
+  .lesson-strip__title{color:var(--c-light);text-wrap:balance}
+  .lesson-strip__text{font-size:var(--fs-16);line-height:25px;color:var(--c-light);text-wrap:pretty}
+  .lesson-strip__text b{font-weight:700}
+  .lesson-strip__action{display:flex;flex-direction:column;gap:var(--sp-10);flex-shrink:0}
+  .lesson-strip__btn{flex-shrink:0}
+  .lesson-strip__meta{font-family:var(--f-mono);font-weight:700;font-size:var(--fs-11);letter-spacing:1.2px;text-transform:uppercase;color:var(--c-muted-on-dark);text-align:center}
+
+  @media (max-width:768px){
+    .lesson-strip{padding:var(--sp-24) var(--pad-x)}
+    .lesson-strip__inner{flex-direction:column;align-items:stretch;gap:var(--sp-20)}
+    .lesson-strip__text{font-size:var(--fs-15);line-height:23px}
+  }
+</style>
+
+<script>
+  // Отметка доступа `lessonAccess` в localStorage ставится двумя независимыми входами:
+  //   '1'    — человек прошёл диагностику (Diagnostic.astro; у старого квиза тоже '1');
+  //   'form' — зарегистрировался формой в конце программы (LessonRegister.astro).
+  // Нижняя полоса (форма): любой доступ → кнопка ведёт на урок. Верхняя (диагностика): на урок
+  // ведём только прошедшего диагностику; зарегистрированному формой диагностика остаётся
+  // доступной, он её не проходил. Без доступа верхняя ведёт на диагностику с теми же
+  // utm-метками, что у этой страницы: они уйдут в карточку контакта.
+  let access: string | null = null;
+  try { access = localStorage.getItem('lessonAccess'); } catch { /* без localStorage остаются прежние кнопки */ }
+
+  const swap = (btn: HTMLElement) => {
+    btn.textContent = 'Смотреть открытый урок';
+    const meta = btn.parentElement?.querySelector<HTMLElement>('[data-lesson-meta]');
+    if (meta) meta.textContent = meta.dataset.done ?? '';
+  };
+
+  document.querySelectorAll<HTMLAnchorElement>('[data-lesson-link]').forEach((link) => {
+    if (access && access !== 'form') {
+      link.href = link.dataset.lessonUrl ?? '';
+      swap(link);
+    } else link.search = location.search;
+  });
+
+  // Форма: с доступом клик не открывает модалку, а ведёт на урок. Перехватываем на фазе
+  // захвата, пока общий common.js не открыл модалку.
+  if (access) {
+    document.querySelectorAll<HTMLElement>('[data-lesson-register]').forEach((btn) => {
+      btn.dataset.go = '1';
+      swap(btn);
+    });
+    document.addEventListener('click', (e) => {
+      const go = (e.target as Element).closest<HTMLElement>('[data-lesson-register][data-go]');
+      if (go) {
+        e.stopPropagation();
+        location.assign(go.dataset.lessonUrl ?? '');
+      }
+    }, true);
+  }
+</script>

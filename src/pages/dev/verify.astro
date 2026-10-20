@@ -1,0 +1,51 @@
+---
+import VerifyLayout from "../../dev/layouts/VerifyLayout.astro";
+import certificates from "../../dev/data/certificates.json";
+
+// В браузер уходят только идентификаторы (они и так напечатаны на сертификатах),
+// имена не публикуем — их отдают только собственные страницы /verify/[id].
+const ids = certificates.map((c) => c.id);
+---
+<VerifyLayout title="Проверка сертификата — NAITION">
+  <div class="verify__card">
+    <h1 class="section__eyebrow">[ VERIFY ] // ПРОВЕРКА СЕРТИФИКАТА</h1>
+    <p class="verify__lead">Отсканируйте QR-код на сертификате или введите его идентификатор, чтобы подтвердить подлинность.</p>
+    <form class="field" id="v-form" novalidate>
+      <input
+        class="field__input"
+        id="v-input"
+        type="text"
+        name="id"
+        inputmode="text"
+        autocomplete="off"
+        autocapitalize="characters"
+        spellcheck="false"
+        placeholder="Например: 01-001-160726-DEM1"
+        aria-label="Идентификатор сертификата"
+        aria-describedby="v-error"
+      />
+      <p class="field__error" id="v-error" role="alert" hidden>Сертификат с таким идентификатором не найден. Проверьте, что код введён полностью и без опечаток.</p>
+      <button class="btn btn--solid field__submit" type="submit">Проверить</button>
+    </form>
+  </div>
+
+  <script is:inline define:vars={{ ids }}>
+    (function () {
+      var form = document.getElementById('v-form');
+      var input = document.getElementById('v-input');
+      var error = document.getElementById('v-error');
+      var valid = new Set(ids.map(function (s) { return s.toUpperCase(); }));
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var id = input.value.trim().toUpperCase();
+        if (!id) { input.focus(); return; }
+        if (valid.has(id)) {
+          window.location.href = '/dev/verify/' + id;
+        } else {
+          error.hidden = false;
+        }
+      });
+      input.addEventListener('input', function () { error.hidden = true; });
+    })();
+  </script>
+</VerifyLayout>

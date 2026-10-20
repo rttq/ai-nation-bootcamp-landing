@@ -1,0 +1,229 @@
+---
+// Урок 8 модуля 3 «Разработка собственного агента» — запись открытого урока
+// буткемпа. Страница-воронка: смотреть видео и уйти в /dev/#register.
+//
+// Плеер (AccelPlayer на v.lpxl.ru) внешнего JS-API не даёт, но его страница
+// читает из строки запроса параметр `startSec`. Проверено перебором: `t`,
+// `start`, `time`, `startTime` игнорируются, срабатывает только `startSec`.
+// Поэтому клик по таймкоду не «перематывает» видео, а перезагружает iframe
+// с новым адресом — секунда-полторы на переподключение к потоку.
+//
+// Таймкоды сняты по субтитрам записи (2:43:19). Длительность сходится с
+// durationInSec:9799 у самого плеера — это версия «бесплатный урок», а не
+// полная запись занятия на 2:59:10, у которой смещения были бы другими.
+import BaseLayout from '../../dev/layouts/BaseLayout.astro';
+
+const APPLY = '/dev/#register';
+
+const VIDEO_ID = 'YOUR_VIDEO_ID';
+const playerUrl = (startSec?: number) =>
+  `https://v.lpxl.ru/v/${VIDEO_ID}?showTitle=true&showControls=true` +
+  (startSec === undefined
+    ? '&muted=true&autoplay=true'
+    : `&autoplay=true&startSec=${startSec}`);
+
+// t — секунды, единственный источник правды: подпись считается из него.
+// practice — номер практики, у теоретических блоков его нет.
+const chapters: { t: number; title: string; practice?: string }[] = [
+  { t: 0, title: 'Вступление: что собираем сегодня' },
+  { t: 58, title: 'Разогрев: кто как применил RAG на своих задачах' },
+  { t: 542, title: 'Повторение: типы моделей, чанкование, устройство RAG' },
+  { t: 777, title: 'Разбор: зачем эмбеддинги и векторная база, где ломается RAG' },
+  { t: 1328, title: 'Агенты: план урока и точка, из которой стартуем' },
+  { t: 1410, title: 'Паттерны Anthropic: workflow, роутинг, параллелизация, агрегатор, оркестратор, оптимизатор' },
+  { t: 1766, title: 'Чистый агент: вызов LLM в бесконечном цикле' },
+  { t: 1833, title: 'Анатомия агента: оркестрация, контекст, тулы, память, observability' },
+  { t: 1954, title: 'Обсуждение: как задать агенту критерий остановки' },
+  { t: 2354, title: '12 факторов агента от HumanLayer' },
+  { t: 3087, title: 'Обсуждение: какие факторы работают, а какие притянуты за уши' },
+  { t: 3455, title: 'Резюме: паттерны и 12 факторов одним списком' },
+  { t: 3598, title: 'Структурированный вывод: OpenAI SDK и контракт Responses API', practice: '01' },
+  { t: 3747, title: 'JSON-схема, Pydantic и пример с DOM-деревом' },
+  { t: 3870, title: 'Задание: агент, который печатает JSON заданной схемы', practice: '01' },
+  { t: 3932, title: 'Работа и разборы кода участников', practice: '01' },
+  { t: 6028, title: 'Тулы и function calling: тул — это structured output' },
+  { t: 6235, title: 'Задание: объявить тул и вызвать его из кода', practice: '02' },
+  { t: 6255, title: 'Обсуждение: кто из провайдеров реально держит structured output' },
+  { t: 6720, title: 'Работа и разборы кода участников', practice: '02' },
+  { t: 7319, title: 'MCP и скиллы — это тоже тулы, только с другим type' },
+  { t: 7544, title: 'Задание: чистый агент — RAG, MCP и скилл в одном tools', practice: '03' },
+  { t: 7649, title: 'Работа и разборы кода участников', practice: '03' },
+  { t: 9672, title: 'Итоги урока' },
+];
+
+// 3598 → «59:58», 3870 → «1:04:30». Часы появляются только когда они есть:
+// на двухчасовой записи «0:59:58» читается как опечатка.
+const stamp = (t: number) => {
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  const mm = h ? String(m).padStart(2, '0') : String(m);
+  return `${h ? `${h}:` : ''}${mm}:${String(s).padStart(2, '0')}`;
+};
+
+---
+
+<BaseLayout
+  noindex
+  title="Разработка собственного агента — открытый урок модуля 3"
+  description="Запись урока буткемпа AI DRIVEN РАЗРАБОТКА: паттерны агентов, 12 факторов HumanLayer и три практики на OpenAI Responses API — структурированный вывод, function calling, чистый агент с RAG, MCP и скиллами."
+>
+
+{/* Мягкий замок: урок открывается после диагностики на /dev/diagnostika/, которая
+    ставит lessonAccess (см. Diagnostic.astro). Не защита — ссылка на видео лежит
+    в коде ниже, — а способ не показывать урок случайному заходу. Без доступа к
+    localStorage пропускаем: отметку негде поставить, и человек ходил бы по кругу.
+    Страница при этом noindex и выведена из sitemap.xml.ts. */}
+<script is:inline>
+  try { if (!localStorage.getItem('lessonAccess')) location.replace('/dev/diagnostika/'); } catch (e) {}
+</script>
+
+<!-- ============================== SUBNAV ============================== -->
+<header class="subnav">
+  <a class="lockup__name" href="/dev/">НЭЙШН</a>
+  <span class="subnav__dot" aria-hidden="true"></span>
+  <span class="subnav__tag">Модуль 3 · Урок</span>
+  <a class="nav__cta nav__cta--desktop" href={APPLY}>Записаться</a>
+</header>
+
+<main id="main-content">
+
+<section class="section section--white">
+  <div class="section__inner">
+    <p class="section__eyebrow">// открытый урок</p>
+    <div class="title-row">
+      <h1 class="section__title">Разработка собственного агента, урок модуля 3</h1>
+      <a class="btn btn--outline" href="/dev/">Перейти на&nbsp;основную страницу&nbsp;→</a>
+    </div>
+
+    <div class="prose">
+      <p>На&nbsp;уроке разобрали архитектурные паттерны построения LLM-агентов&nbsp;— воркфлоу, маршрутизацию, параллелизацию, оркестрацию и&nbsp;цикл «оптимизатор-судья», а&nbsp;также «12&nbsp;факторов» agent-native разработки от&nbsp;команды HumanLayer: структурированный вывод вместо доверия к&nbsp;магии промпта, управление контекстом вручную, stateless-агенты и&nbsp;принцип «агент как маленький микросервис».</p>
+      <p>В&nbsp;процессе каждый участник с&nbsp;нуля написал собственного агента на&nbsp;OpenAI Responses API SDK на&nbsp;своём языке (Python, TypeScript, Go, Java)&nbsp;— с&nbsp;structured output, вызовом функций (function calling) и&nbsp;подключением инструментов через MCP и&nbsp;скиллы, объединив всё, что изучали на&nbsp;предыдущих уроках по&nbsp;RAG, эмбеддингам и&nbsp;чанкованию.</p>
+      <p>Все уроки буткемпа проходят в&nbsp;таком формате: сначала разбор темы с&nbsp;примерами и&nbsp;живым обсуждением, где каждый делится своим опытом и&nbsp;рабочими кейсами, а&nbsp;затем&nbsp;— практика в&nbsp;реальном времени, когда участники пишут код у&nbsp;себя в&nbsp;окружении, а&nbsp;преподаватель ходит по&nbsp;расшарённым экранам, отвечает на&nbsp;вопросы и&nbsp;помогает исправлять ошибки прямо по&nbsp;ходу занятия. Такой подход держит баланс между теорией и&nbsp;практикой: слушатели не&nbsp;просто смотрят презентацию, а&nbsp;к&nbsp;концу занятия уже имеют работающий код, который можно развивать дальше в&nbsp;своих проектах.</p>
+    </div>
+
+    <div class="player">
+      <iframe
+        id="lesson-video"
+        src={playerUrl()}
+        title="Разработка собственного агента, урок модуля 3"
+        frameborder="0"
+        allow="accelerometer; fullscreen; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      ></iframe>
+    </div>
+
+    <h2 class="section__title section__title--tight chapters__head">Таймкоды (кликабельные)</h2>
+    <ol class="chapters">
+      {chapters.map(({ t, title, practice }) => (
+        <li class:list={['chapters__row', practice && 'chapters__row--practice']}>
+          <button class="chapters__btn" type="button" data-start={t}>
+            <span class="chapters__time">{stamp(t)}</span>
+            <span class="chapters__title">
+              {practice && <span class="chapters__tag">практика {practice}</span>}
+              {title}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>
+
+</main>
+
+<footer class="subfooter">
+  <span>Naition // Модуль 3, урок 8</span>
+  <div class="subfooter__links">
+    <a href="/dev/">ai-nation.ru</a>
+  </div>
+</footer>
+
+<style>
+  /* Кнопка заявки — тот же `.nav__cta.nav__cta--desktop`, что в шапке `/dev/`:
+     250×84 на десктопе, по содержимому и в высоту полосы ниже 1120. Своих
+     размеров здесь нет намеренно — иначе кнопка разъедется с оригиналом при
+     первой же правке шапки раздела.
+     Под неё полоса подросла с 64px до --nav-h и лишилась правого падинга:
+     .nav устроена так же, и кнопка упирается в край экрана. */
+  .subnav{padding-right:0;min-height:var(--nav-h)}
+  .nav__cta{margin-left:auto}
+
+  /* 70% ширины, как просили, но не уже 320px и по центру колонки.
+     aspect-ratio держит 16:9 без padding-hack. */
+  .player{
+    width:70%;min-width:min(100%,320px);margin:0 auto;
+    aspect-ratio:16/9;background:var(--c-ink);
+  }
+  .player iframe{width:100%;height:100%;display:block;border:0}
+
+  /* Заголовок слева, кнопка справа по его верхнему краю; ниже 768 — под ним
+     на всю ширину (это делает .btn раздела). */
+  .title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--sp-40);width:100%}
+  .title-row .btn{flex-shrink:0}
+
+  .chapters__head{font-size:var(--fs-32);line-height:36px}
+
+  .chapters{
+    width:100%;
+    border-top:1px solid var(--c-line);
+    /* Список нумерованный по разметке (порядок глав — смысловой), но номера
+       не показываем: слева уже стоит таймкод, две колонки цифр спорят. */
+    list-style:none;margin:0;padding:0;
+  }
+  .chapters__row{border-bottom:1px solid var(--c-line)}
+
+  .chapters__btn{
+    display:flex;gap:var(--sp-20);align-items:baseline;
+    width:100%;padding:var(--sp-14) 0;
+    background:none;border:0;text-align:left;cursor:pointer;
+    transition:background-color var(--dur) var(--ease);
+  }
+  .chapters__btn:hover{background:var(--c-bg)}
+  .chapters__btn:focus-visible{outline:2px solid var(--c-ink);outline-offset:-2px}
+
+  .chapters__time{
+    flex-shrink:0;width:72px;
+    font-family:var(--f-mono);font-weight:700;font-size:var(--fs-13);
+    /* Акцент текстом — только --c-accent-text: основной янтарь даёт на белом
+       2.03 при норме 4.5. См. комментарий у токена. */
+    color:var(--c-accent-text);
+  }
+  .chapters__title{font-weight:500;font-size:var(--fs-16);line-height:24px;color:var(--c-ink)}
+
+  .chapters__tag{
+    display:inline-block;margin-right:var(--sp-10);
+    padding:2px var(--sp-8);background:var(--c-accent-tint);
+    font-family:var(--f-mono);font-weight:700;font-size:var(--fs-10);
+    letter-spacing:1.2px;text-transform:uppercase;color:var(--c-accent-text);
+    vertical-align:1px;
+  }
+  .chapters__row--practice .chapters__title{font-weight:700}
+
+  @media (max-width:768px){
+    .title-row{flex-direction:column;align-items:flex-start;gap:var(--sp-16)}
+    .player{width:100%}
+    .chapters__btn{gap:var(--sp-12)}
+    .chapters__time{width:60px;font-size:var(--fs-12)}
+    .chapters__title{font-size:var(--fs-15);line-height:22px}
+  }
+</style>
+
+<script>
+  // Плеер не умеет принимать команды извне, поэтому перемотка — это новый src.
+  // Звук на старте выключен (браузеры иначе не дают автозапуск), а клик по
+  // таймкоду — это уже жест пользователя, и на нём `muted` можно снять.
+  const frame = document.getElementById('lesson-video') as HTMLIFrameElement | null;
+  if (frame) {
+    for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-start]')) {
+      btn.addEventListener('click', () => {
+        const url = new URL(frame.src);
+        url.searchParams.delete('muted');
+        url.searchParams.set('startSec', btn.dataset.start ?? '0');
+        frame.src = url.toString();
+        frame.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      });
+    }
+  }
+</script>
+
+</BaseLayout>

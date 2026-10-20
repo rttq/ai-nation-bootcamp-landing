@@ -1,0 +1,546 @@
+---
+// Диагностика AI-разработки на /dev/diagnostika/ (раньше здесь был квиз-модалка
+// LessonQuiz). Вопросы → форма контакта → результат с профилем и оффером. Форма
+// уходит в CRM AXL через Cloud Function `axl-lead` (functions/axl-lead/): токен
+// AXL живёт в Lockbox, в браузер он не попадает. Профиль, оси и ответы словами
+// лежат в комментарии контакта (buildComment), если контакт уже был — функция
+// дописывает их к старому комментарию.
+//
+// Вопросы, тексты результата и подсчёт — src/dev/data/diagnostic.ts, оффер и
+// цена — src/dev/data/program.ts. Здесь только отрисовка и отправка.
+//
+// Результат строится в браузере по ответам. Контакт просим только у тех, кому
+// показываем оффер (профили C, D, E); тем, кто вышел раньше (не разработчик,
+// стаж до двух лет) и тем, кто уже всё умеет (B), форму не показываем. Подарок
+// (запись урока) получают все профили, A и B тоже, без формы: в CRM они не попадают.
+//
+// Доступ к уроку мягкий: после успешной отправки ставим `lessonAccess` в
+// localStorage, а /dev/agents-lesson/ без неё возвращает сюда. Это не защита —
+// прямая ссылка на видео лежит в коде страницы, — а способ не показывать урок
+// случайному заходу. Урок открывается кнопкой на экране результата.
+//
+// Разметку шагов рисует скрипт (innerHTML), поэтому стили глобальные с
+// префиксом `dg-`: у такой разметки нет атрибута областей видимости Astro.
+const DEV_COUNTER = 0; // номер счётчика Яндекс Метрики; без счётчика цели не отправляются
+import { QUESTIONS } from '../data/diagnostic';
+import { LEAD_URL, LESSON_URL } from '../data/lesson';
+import { diagnosticOffer, facts, priceAmount } from '../data/program';
+
+const { fullPrice, discount, until } = diagnosticOffer;
+
+const config = {
+  leadUrl: LEAD_URL,
+  lessonUrl: LESSON_URL,
+  applyUrl: '/dev/',
+  tgUrl: 'https://t.me/your_channel',
+  privacyUrl: '#',
+  counter: DEV_COUNTER,
+  total: QUESTIONS.length,
+  offer: {
+    fullPrice,
+    price: Math.round(fullPrice * (1 - discount)),
+    percent: Math.round(discount * 100),
+    until,
+    modulePrice: priceAmount,
+  },
+  // Плашки «из чего состоит буткемп»: числа берём из facts, чтобы не разъехаться с главной.
+  chips: ['3-й поток', ...facts.map((f) => `${f.num} ${f.label}`), 'записи 6 месяцев'],
+};
+---
+<div class="dg" data-diagnostic data-config={JSON.stringify(config)}>
+  <div class="dg-top">
+    <div class="dg-brand"><span>AI Nation · Диагностика</span><span data-dg-step></span></div>
+    <div class="dg-rail" data-dg-rail aria-hidden="true"></div>
+  </div>
+  <div class="dg-stage" data-dg-stage></div>
+  <noscript><p class="dg-text">Для диагностики нужен включённый JavaScript.</p></noscript>
+</div>
+
+<style is:global>
+  .dg{width:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:var(--sp-24)}
+  .dg [hidden]{display:none}
+  .dg [tabindex="-1"]:focus{outline:none}
+  .dg-stage{display:flex;flex-direction:column;gap:var(--sp-24)}
+
+  .dg-top{display:flex;flex-direction:column;gap:var(--sp-12)}
+  .dg-brand{display:flex;justify-content:space-between;gap:var(--sp-12);font-family:var(--f-mono);font-weight:700;font-size:var(--fs-11);letter-spacing:1.5px;text-transform:uppercase;color:var(--c-muted)}
+  .dg-rail{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:var(--sp-4)}
+  .dg-rail i{height:4px;background:var(--c-line)}
+  .dg-rail i.on{background:var(--c-ink)}
+
+  .dg-card{background:var(--c-white);padding:var(--sp-32);display:flex;flex-direction:column;gap:var(--sp-20)}
+  .dg-title{font-weight:900;font-size:var(--fs-28);line-height:1.15;letter-spacing:-.8px;text-transform:uppercase;color:var(--c-ink)}
+  .dg-title--lg{font-size:var(--fs-34)}
+  .dg-text{font-size:var(--fs-16);line-height:25px;color:var(--c-ink)}
+  .dg-muted{color:var(--c-muted)}
+  .dg-small{font-size:var(--fs-14);line-height:21px}
+  .dg-hint{margin-top:var(--sp-12);font-size:var(--fs-14);line-height:21px;color:var(--c-muted)}
+
+  /* fieldset и legend несут браузерные рамки и отступы — сбрасываем, это просто группа */
+  .dg-step{border:0;padding:0;margin:0;min-width:0}
+  .dg-step legend{padding:0}
+
+  .dg-term{margin-top:var(--sp-20);background:var(--c-ink);color:var(--c-light);font-family:var(--f-mono);font-size:var(--fs-13);line-height:1.6;padding:var(--sp-12) var(--sp-16);overflow-x:auto;white-space:pre}
+  .dg-dim{color:var(--c-muted-on-dark)}
+
+  .dg-opts{display:grid;gap:var(--sp-10);margin-top:var(--sp-24)}
+  .dg-opt{display:block;position:relative;cursor:pointer}
+  /* Настоящая радиокнопка остаётся в потоке для клавиатуры и скринридера, рисуем
+     вместо неё соседний span: так выбор и фокус видны без :has(). */
+  .dg-opt input{position:absolute;opacity:0;width:1px;height:1px}
+  .dg-opt span{
+    display:flex;align-items:flex-start;gap:var(--sp-14);
+    padding:var(--sp-16) var(--sp-20);
+    border:1px solid var(--c-line);background:var(--c-white);
+    font-size:var(--fs-16);line-height:24px;color:var(--c-ink);
+    transition:border-color var(--dur) var(--ease),background-color var(--dur) var(--ease);
+  }
+  .dg-k{flex-shrink:0;padding-top:2px;font-style:normal;font-family:var(--f-mono);font-weight:700;font-size:var(--fs-12);line-height:20px;color:var(--c-muted)}
+  .dg-opt:hover span{border-color:var(--c-ink)}
+  .dg-opt input:checked + span{border-color:var(--c-ink);background:var(--c-accent-tint)}
+  .dg-opt input:checked + span .dg-k{color:var(--c-ink)}
+  .dg-opt input:focus-visible + span{outline:2px solid var(--c-ink);outline-offset:2px}
+
+  /* Все карточки вопросов лежат в одной ячейке сетки: её высота равна самой высокой,
+     поэтому у всех вопросов она одна. Неактивные скрыты через visibility, не display:
+     так они занимают место, но не попадают ни в Tab, ни скринридеру. */
+  .dg-qstack{display:grid}
+  .dg-qstack > .dg-q{grid-area:1/1;min-width:0}
+  .dg-qstack > .dg-q:not(.is-active){visibility:hidden}
+  /* Кнопки «Назад» и «Далее» прижаты ко дну карточки и не гуляют по числу вариантов. */
+  .dg-q .dg-nav{margin-top:auto}
+
+  .dg-nav{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-16);margin-top:var(--sp-4)}
+  .dg-back{font-family:var(--f-mono);font-weight:700;font-size:var(--fs-12);letter-spacing:1.2px;text-transform:uppercase;color:var(--c-muted);padding:var(--sp-12) 0;white-space:nowrap;flex-shrink:0}
+  .dg-back:hover{color:var(--c-ink)}
+  .dg-again{align-self:flex-start}
+  /* .btn ниже 768 растягивается на всю ширину и сплющивает «Назад» до двух строк: занимает остаток ряда */
+  .dg .dg-next{height:48px;margin-left:auto;width:auto;flex:1 1 auto}
+  @media (min-width:769px){.dg .dg-next{flex:0 0 auto}}
+  .dg-next:disabled{opacity:.4;cursor:default}
+  .dg-start{align-self:flex-start}
+
+  .dg-form{display:flex;flex-direction:column;gap:var(--sp-20)}
+  .dg-goals-wrap{display:flex;flex-direction:column;gap:var(--sp-10)}
+  .dg-goals{display:flex;flex-wrap:wrap;gap:var(--sp-8)}
+  .dg-chip{padding:var(--sp-8) var(--sp-14);border:1px solid var(--c-line);background:var(--c-white);font-size:var(--fs-14);line-height:21px;color:var(--c-ink);transition:border-color var(--dur) var(--ease),background-color var(--dur) var(--ease)}
+  .dg-chip:hover{border-color:var(--c-ink)}
+  .dg-chip[aria-pressed="true"]{border-color:var(--c-ink);background:var(--c-accent-tint)}
+  /* ловушка для ботов: человек поле не видит и не достаёт до него Tab-ом */
+  .dg-trap{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+  .dg-consent{display:flex;gap:var(--sp-12);align-items:flex-start;font-size:var(--fs-14);line-height:21px;color:var(--c-muted)}
+  .dg-consent input{flex-shrink:0;width:18px;height:18px;margin:2px 0 0;accent-color:var(--c-ink)}
+  .dg-consent a{color:var(--c-ink);text-decoration:underline;text-underline-offset:3px}
+  .dg-submit:disabled{opacity:.5;cursor:default}
+
+  .dg-res{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:var(--sp-24);align-items:center}
+  .dg-radar{display:block;width:100%;height:auto}
+  .dg-ring{fill:none;stroke:var(--c-line);stroke-width:1}
+  .dg-shape{fill:var(--c-accent);fill-opacity:.3;stroke:var(--c-ink);stroke-width:2;stroke-linejoin:round}
+  .dg-radar text{font-family:var(--f-mono);font-size:14px;fill:var(--c-muted)}
+  .dg-bars{display:flex;flex-direction:column;gap:var(--sp-12)}
+  .dg-bar{display:grid;grid-template-columns:1fr auto;gap:var(--sp-4) var(--sp-12);font-size:var(--fs-14);line-height:21px}
+  .dg-bar b{font-family:var(--f-mono);font-weight:700;font-variant-numeric:tabular-nums}
+  .dg-track{grid-column:1/-1;height:6px;background:var(--c-line)}
+  .dg-fill{height:100%;background:var(--c-ink)}
+  .dg-bar--gap .dg-fill{background:var(--c-accent)}
+  .dg-badge{margin-left:var(--sp-8);font-family:var(--f-mono);font-size:var(--fs-11);color:var(--c-muted)}
+
+  .dg-gaps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-16)}
+  .dg-gap{background:var(--c-white);padding:var(--sp-24);display:flex;flex-direction:column;gap:var(--sp-10);min-width:0}
+  .dg-gap__tag{font-family:var(--f-mono);font-weight:700;font-size:var(--fs-12);letter-spacing:1.2px;text-transform:uppercase;color:var(--c-accent-text)}
+  .dg-gap h3{font-weight:900;font-size:var(--fs-18);line-height:1.2}
+
+  /* Чёрная плашка в правом верхнем углу первого блока результата. Высота равна верхнему
+     падингу карточки (32), поэтому над заголовком её не задевает. */
+  .dg-card--note{position:relative}
+  .dg-note{position:absolute;top:0;right:0;background:var(--c-ink);color:var(--c-light);padding:var(--sp-8) var(--sp-16);font-family:var(--f-mono);font-weight:700;font-size:var(--fs-11);line-height:16px;letter-spacing:1.2px;text-transform:uppercase}
+
+  .dg-lesson{background:var(--c-ink);padding:var(--sp-24) var(--sp-32);display:flex;align-items:center;justify-content:space-between;gap:var(--sp-24)}
+  .dg-lesson p{color:var(--c-light);font-size:var(--fs-16);line-height:25px}
+  .dg-lesson .btn{flex-shrink:0}
+
+  .dg-list{display:flex;flex-direction:column;gap:var(--sp-12)}
+  .dg-list li{display:grid;grid-template-columns:auto 1fr;gap:var(--sp-12)}
+  .dg-mark{font-family:var(--f-mono);font-weight:700;font-size:var(--fs-12);line-height:24px;color:var(--c-accent-text)}
+  .dg-facts{display:flex;flex-wrap:wrap;gap:var(--sp-8)}
+  .dg-facts span{font-family:var(--f-mono);font-weight:700;font-size:var(--fs-12);border:1px solid var(--c-line);padding:var(--sp-4) var(--sp-12)}
+  .dg-quotes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-16)}
+  .dg-quotes blockquote{padding:var(--sp-4) 0 var(--sp-4) var(--sp-16);border-left:2px solid var(--c-accent);display:flex;flex-direction:column;gap:var(--sp-8);min-width:0}
+  .dg-quotes cite{font-style:normal;font-family:var(--f-mono);font-size:var(--fs-12);line-height:18px;color:var(--c-muted)}
+
+  .dg-offer{background:var(--c-ink);color:var(--c-light);padding:var(--sp-32);display:flex;flex-direction:column;gap:var(--sp-20)}
+  .dg-offer .section__eyebrow{color:var(--c-accent)}
+  .dg-offer .dg-title{color:var(--c-light)}
+  .dg-offer .dg-mark{color:var(--c-accent)}
+  /* Метки разной длины («−25%», «подарок», «15 мин»): общая колонка, иначе текст пунктов едет. */
+  .dg-offer .dg-list li{grid-template-columns:64px 1fr}
+  .dg-offer .dg-muted{color:var(--c-muted-on-dark)}
+  .dg-price{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--sp-6) var(--sp-16);font-variant-numeric:tabular-nums}
+  .dg-price s{color:var(--c-muted-on-dark)}
+  .dg-price strong{font-weight:900;font-size:var(--fs-34);letter-spacing:-.8px}
+  .dg-stack{display:flex;flex-direction:column;gap:var(--sp-12);align-items:flex-start}
+  .dg-offer .btn--outline{color:var(--c-light);border-color:var(--c-light)}
+  .dg-sep{height:1px;border:0;background:var(--c-field)}
+
+  @media (max-width:768px){
+    .dg-card,.dg-offer{padding:var(--sp-20)}
+    .dg-title{font-size:var(--fs-24);letter-spacing:-.5px}
+    .dg-title--lg{font-size:var(--fs-28)}
+    .dg-res,.dg-gaps,.dg-quotes{grid-template-columns:minmax(0,1fr)}
+    .dg-lesson{flex-direction:column;align-items:stretch;padding:var(--sp-20)}
+    /* Падинг карточки на телефоне 20, плашка в 32 налезла бы на строку профиля: ложится первой полосой во всю ширину. */
+    .dg-note{position:static;margin:calc(-1 * var(--sp-20)) calc(-1 * var(--sp-20)) 0;text-align:right}
+    .dg-stack{align-items:stretch}
+    .dg-start,.dg-again{align-self:stretch}
+  }
+</style>
+
+<script>
+  import {
+    AXES, AXIS_ORDER, GAPS, GOALS, PROFILES, QUESTIONS,
+    buildComment, isExit, isNotDev, outcome, scores, weakest,
+    type Answers, type AxisKey,
+  } from '../data/diagnostic';
+
+  interface Config {
+    leadUrl: string; lessonUrl: string; applyUrl: string; tgUrl: string; privacyUrl: string;
+    counter: number; total: number; chips: string[];
+    offer: { fullPrice: number; price: number; percent: number; until: string; modulePrice: string };
+  }
+
+  const root = document.querySelector<HTMLElement>('[data-diagnostic]');
+
+  if (root) {
+    const cfg = JSON.parse(root.dataset.config ?? '{}') as Config;
+    const stage = root.querySelector<HTMLElement>('[data-dg-stage]')!;
+    const rail = root.querySelector<HTMLElement>('[data-dg-rail]')!;
+    const stepLabel = root.querySelector<HTMLElement>('[data-dg-step]')!;
+    const total = QUESTIONS.length;
+
+    // -1 вступление, 0…total-1 вопросы, total форма контакта, total+1 результат
+    let i = -1;
+    let answers: Answers = {};
+    let started = false;
+    let goalPick = '';
+    let leadName = '';
+
+    const esc = (s: string) =>
+      s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+    const money = (n: number) => n.toLocaleString('ru-RU').replace(/\s/g, ' ');
+
+    // Цель Метрики. Названия те же, что были у квиза-модалки: счётчик и цели не менялись.
+    const goal = (name: string) => {
+      const ym = (window as unknown as { ym?: (...args: unknown[]) => void }).ym;
+      if (typeof ym === 'function') ym(cfg.counter, 'reachGoal', name);
+    };
+
+    const progress = (done: number, label: string) => {
+      rail.innerHTML = QUESTIONS.map((_, n) => `<i${n < done ? ' class="on"' : ''}></i>`).join('');
+      stepLabel.textContent = label;
+    };
+
+    // Фокус на заголовок шага (или на выбранный вариант), чтобы скринридер объявил новый экран.
+    const show = (html: string) => {
+      stage.innerHTML = html;
+      // На вопросах в разметке лежат все карточки сразу, ищем только в активной.
+      const scope = stage.querySelector<HTMLElement>('.dg-q.is-active') ?? stage;
+      (scope.querySelector<HTMLElement>('[data-dg-focus]') ??
+        scope.querySelector<HTMLElement>('input[type="radio"]:checked') ??
+        scope.querySelector<HTMLElement>('input[type="radio"]'))?.focus({ preventScroll: true });
+      if (root.getBoundingClientRect().top < 0) root.scrollIntoView();
+    };
+
+    const intro = () => {
+      i = -1;
+      progress(0, '');
+      show(
+        `<section class="dg-card"><p class="section__eyebrow">Диагностика · ${total} вопросов, около 3 минут</p>` +
+        '<h1 class="dg-title dg-title--lg" tabindex="-1" data-dg-focus>AI меняет разработку, и неравномерно</h1>' +
+        '<p class="dg-text">У одних AI уже встроен в рабочий процесс, у других остаётся автодополнением в редакторе. Требования компаний к технической команде меняются, а вместе с ними и сами роли: от «пишу код» к «ставлю задачи и отвечаю за результат».</p>' +
+        '<p class="dg-text">Короткая диагностика покажет ваш профиль на сегодня и подсветит точки роста лично для вас. А после результата вас ждёт подарок.</p>' +
+        '<button type="button" class="btn btn--solid dg-start" data-dg-start>Начать диагностику</button></section>',
+      );
+    };
+
+    const questionCard = (q: (typeof QUESTIONS)[number], active: boolean) => {
+      const opts = q.opts
+        .map(
+          (o, k) =>
+            `<label class="dg-opt"><input type="radio" name="${q.id}" value="${k}"${answers[q.id] === k ? ' checked' : ''}>` +
+            `<span><i class="dg-k">${'ABCDEFGH'[k]}</i>${esc(o)}</span></label>`,
+        )
+        .join('');
+      return (
+        `<section class="dg-card dg-q${active ? ' is-active' : ''}"><fieldset class="dg-step"><legend class="dg-title">${esc(q.title)}</legend>` +
+        (q.hint ? `<p class="dg-hint">${esc(q.hint)}</p>` : '') +
+        (q.term ? `<div class="dg-term" aria-hidden="true">${q.term}</div>` : '') +
+        `<div class="dg-opts">${opts}</div></fieldset>` +
+        '<div class="dg-nav"><button type="button" class="dg-back" data-dg-back>← Назад</button>' +
+        `<button type="button" class="btn btn--outline dg-next" data-dg-next${answers[q.id] === undefined ? ' disabled' : ''}>Далее →</button></div></section>`
+      );
+    };
+
+    // Рисуем сразу все вопросы в одной ячейке сетки, виден один (см. .dg-qstack): ячейка
+    // всегда по самой высокой карточке, так что страница не прыгает между вопросами.
+    // Замер высоты скриптом не нужен, она сама подстраивается под ширину экрана и шрифт.
+    const question = (n: number) => {
+      i = n;
+      progress(n, `Вопрос ${n + 1} из ${total}`);
+      show(`<div class="dg-qstack">${QUESTIONS.map((q, k) => questionCard(q, k === n)).join('')}</div>`);
+    };
+
+    const contact = () => {
+      i = total;
+      goalPick = '';
+      progress(total, 'Результат готов');
+      const goals = GOALS.map(
+        (g) => `<button type="button" class="dg-chip" aria-pressed="false" data-dg-goal="${esc(g)}">${esc(g)}</button>`,
+      ).join('');
+      show(
+        '<section class="dg-card"><p class="section__eyebrow">Последний шаг</p>' +
+        '<h2 class="dg-title" tabindex="-1" data-dg-focus>Ваша карта пробелов готова</h2>' +
+        '<p class="dg-text dg-muted">Оставьте контакт: покажем профиль, два главных вектора развития и откроем ваш подарок.</p>' +
+        '<form class="dg-form ym-disable-keys" data-dg-form novalidate>' +
+        '<label class="field"><span class="label">Имя</span><input class="field__input" type="text" name="name" autocomplete="given-name" required></label>' +
+        '<label class="field"><span class="label">Почта</span><input class="field__input" type="email" name="email" autocomplete="email" inputmode="email" required></label>' +
+        '<label class="field"><span class="label">Telegram (по желанию)</span><input class="field__input" type="text" name="telegram" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="@username"></label>' +
+        `<div class="dg-goals-wrap"><span class="label">Что для вас сейчас главное (по желанию)</span><div class="dg-goals">${goals}</div></div>` +
+        '<input class="dg-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+        '<label class="dg-consent"><input type="checkbox" name="consent" required><span>Согласен на&nbsp;обработку персональных данных и&nbsp;с ' +
+        `<a href="${cfg.privacyUrl}" target="_blank" rel="noopener">политикой конфиденциальности</a></span></label>` +
+        '<p class="field__error" data-dg-error role="alert" hidden></p>' +
+        '<button type="submit" class="btn btn--solid dg-submit">Показать результат</button></form>' +
+        '<div class="dg-nav"><button type="button" class="dg-back" data-dg-back>← Назад</button></div></section>',
+      );
+    };
+
+    const radar = (s: Record<AxisKey, number>) => {
+      const cx = 130, cy = 130, R = 76, n = AXIS_ORDER.length;
+      const angle = (k: number) => -Math.PI / 2 + (k * 2 * Math.PI) / n;
+      const pt = (k: number, f: number) => `${(cx + Math.cos(angle(k)) * R * f).toFixed(1)},${(cy + Math.sin(angle(k)) * R * f).toFixed(1)}`;
+      const poly = (f: (key: AxisKey) => number) => AXIS_ORDER.map((key, k) => pt(k, f(key))).join(' ');
+      const short: Record<AxisKey, string> = { spec: 'Спеки', ctx: 'Контекст', agents: 'Агенты', rag: 'RAG', legacy: 'Legacy' };
+      const rings = [0.25, 0.5, 0.75, 1].map((f) => `<polygon class="dg-ring" points="${poly(() => f)}"/>`).join('');
+      const spokes = AXIS_ORDER.map((_, k) => `<polyline class="dg-ring" points="${cx},${cy} ${pt(k, 1)}"/>`).join('');
+      const labels = AXIS_ORDER.map((key, k) => {
+        const c = Math.cos(angle(k));
+        const anchor = Math.abs(c) < 0.2 ? 'middle' : c > 0 ? 'start' : 'end';
+        const x = (cx + c * (R + 22)).toFixed(1);
+        const y = (cy + Math.sin(angle(k)) * (R + 18) + 4).toFixed(1);
+        return `<text x="${x}" y="${y}" text-anchor="${anchor}">${short[key]}</text>`;
+      }).join('');
+      // Минимум 6%: нулевая ось иначе схлопывает фигуру в точку у центра.
+      return `<svg class="dg-radar" viewBox="-36 0 332 260" role="img" aria-label="Профиль по пяти осям">${rings}${spokes}` +
+        `<polygon class="dg-shape" points="${poly((key) => Math.max(s[key], 6) / 100)}"/>${labels}</svg>`;
+    };
+
+    const bars = (s: Record<AxisKey, number>, gaps: AxisKey[]) =>
+      AXIS_ORDER.map((k) => {
+        const v = gaps.indexOf(k);
+        return `<div class="dg-bar${s[k] < 50 ? ' dg-bar--gap' : ''}"><span>${AXES[k]}${v > -1 ? `<span class="dg-badge">вектор ${v + 1}</span>` : ''}</span>` +
+          `<b>${s[k]}%</b><div class="dg-track"><div class="dg-fill" style="width:${s[k]}%"></div></div></div>`;
+      }).join('');
+
+    const tgButton = (cls: string, text: string) =>
+      `<a class="btn ${cls}" href="${cfg.tgUrl}" target="_blank" rel="noopener">${text}</a>`;
+
+    // Отметка доступа к уроку: на неё смотрит замок /dev/agents-lesson/. Без localStorage урок пропускается и так.
+    const grantAccess = () => {
+      try { localStorage.setItem('lessonAccess', '1'); } catch { /* урок откроется и без отметки, см. agents-lesson */ }
+    };
+
+    // Подарок за диагностику: блок с кнопкой на урок, на любом результате последний.
+    const lessonBlock = () =>
+      '<div class="dg-lesson"><p><b>Ваш подарок: запись открытого урока.</b> Урок по разработке своего агента: паттерны, практика, код.</p>' +
+      `<a class="btn btn--solid" href="${cfg.lessonUrl}">Смотреть открытый урок</a></div>`;
+
+    const result = () => {
+      i = total + 1;
+      progress(total, 'Результат');
+      const s = scores(answers);
+      const oc = outcome(answers);
+      const again = '<button type="button" class="dg-back dg-again" data-dg-again>Пройти заново</button>';
+      const h1 = (t: string) => `<h1 class="dg-title dg-title--lg" tabindex="-1" data-dg-focus>${t}</h1>`;
+
+      // A и B контакта не оставляют, но подарок получают (решение владельца 2026-10-05). Цена этого:
+      // урок доступен и без почты — достаточно ответить «Другое, не разработчик».
+      if (oc === 'A') {
+        const nondev = isNotDev(answers);
+        grantAccess();
+        show(
+          `<section class="dg-card"><p class="section__eyebrow">Результат</p>${h1('Буткемп пока не для вас')}` +
+          `<p class="dg-text">${nondev
+            ? 'Программа написана для действующих разработчиков: на занятиях разбирают чужие монолиты, рефакторинг и командные процессы, и без своей практики эта часть не работает.'
+            : 'Программа рассчитана на разработчиков с практикой от нескольких лет. На занятиях разбирают чужие монолиты, рефакторинг и командные процессы, и без своего опыта эта часть не даст отдачи.'}</p>` +
+          '<p class="dg-text dg-muted">Лучше сначала набрать практику. А пока в нашем Telegram-канале выкладываем разборы и материалы по AI-разработке, они будут полезны уже сейчас.</p>' +
+          `<div class="dg-stack">${tgButton('btn--solid', 'Читать Telegram-канал')}` +
+          `${nondev ? `<a class="btn btn--outline" href="${cfg.applyUrl}#register">Оставить заявку на странице курса</a>` : ''}</div></section>${lessonBlock()}${again}`,
+        );
+        return;
+      }
+
+      if (oc === 'B') {
+        grantAccess();
+        show(
+          `<section class="dg-card"><p class="section__eyebrow">Результат</p>${h1('Вы уже работаете так, как мы учим')}` +
+          `<div class="dg-res"><div>${radar(s)}</div><div class="dg-bars">${bars(s, [])}</div></div>` +
+          '<p class="dg-text">По всем пяти осям у вас высокий уровень. Буткемп даст вам немного нового, и продавать его вам мы не будем.</p>' +
+          '<p class="dg-text dg-muted">Если интересно сверять практики с теми, кто занимается тем же, приходите в Telegram-канал: там разборы и обмен опытом.</p>' +
+          `<div class="dg-stack">${tgButton('btn--solid', 'Читать Telegram-канал')}</div></section>${lessonBlock()}${again}`,
+        );
+        return;
+      }
+
+      const p = PROFILES[oc]!;
+      const gaps = weakest(s, oc);
+      const o = cfg.offer;
+      const gapCards = gaps
+        .map(
+          (k) =>
+            `<article class="dg-gap"><p class="dg-gap__tag">${s[k] < 50 ? 'Пробел' : 'Можно усилить'} · ${s[k]}%</p><h3>${GAPS[k].title}</h3>` +
+            `<p class="dg-text">${GAPS[k].cost}</p><p class="dg-text"><b>Куда расти.</b> ${GAPS[k].direction}</p></article>`,
+        )
+        .join('');
+      show(
+        // Плашка в углу первого блока: кнопка урока стоит в самом низу, под оффером.
+        `<section class="dg-card dg-card--note"><p class="dg-note">Ссылка на открытый урок внизу</p><p class="section__eyebrow">Профиль · ${p.name}</p>${h1(esc(p.title))}` +
+        (leadName ? `<p class="dg-text dg-muted">${esc(leadName)}, вот что показали ваши ответы.</p>` : '') +
+        `<p class="dg-text">${p.text}</p>` +
+        `<div class="dg-res"><div>${radar(s)}</div><div class="dg-bars">${bars(s, gaps)}</div></div></section>` +
+        '<h2 class="dg-title">Два главных вектора развития</h2>' +
+        (s[gaps[1]] >= 50 ? '<p class="dg-text dg-muted">Сильных провалов у вас нет, остальные направления на одном уровне. Мы выбрали те, что сильнее всего влияют на качество работы с агентом.</p>' : '') +
+        `<div class="dg-gaps">${gapCards}</div>` +
+        '<section class="dg-card"><p class="section__eyebrow">Что дальше</p><h2 class="dg-title">Как закрыть эти направления системно</h2>' +
+        '<p class="dg-text">Мы, AI Nation, учим AI-driven разработке мидлов, сеньоров и лидов, и это уже третий поток. Буткемп устроен как цельная система: каждый модуль опирается на предыдущий, а знания лучше иметь равномерно, поэтому программа проходит все пять направлений вашей диагностики.</p>' +
+        '<ul class="dg-list">' +
+        '<li><span class="dg-mark">1</span><span><b>AI как рабочий инструмент.</b> Спецификации, агенты, деплой.</span></li>' +
+        '<li><span class="dg-mark">2</span><span><b>Качество и контекст.</b> Проверки, память агента, RAG.</span></li>' +
+        '<li><span class="dg-mark">3</span><span><b>Агенты.</b> Мультиагентные системы под ваши задачи.</span></li>' +
+        '<li><span class="dg-mark">4</span><span><b>Сложные кейсы.</b> Legacy, декомпозиция, безопасный рефакторинг.</span></li>' +
+        '<li><span class="dg-mark">5</span><span><b>Масштаб и карьера.</b> Внедрение в команде, позиция на рынке.</span></li></ul>' +
+        `<div class="dg-facts">${cfg.chips.map((c) => `<span>${esc(c)}</span>`).join('')}</div>` +
+        '<p class="dg-text">Практика идёт на вашем рабочем проекте: на выходе портфолио из 3-5 внедрений. Преподают инженеры с опытом Yandex Cloud, Meta и Google.</p>' +
+        '<p class="dg-text"><b>Программный комитет.</b> До запуска потока программу разобрали CTO, CPO и управляющие партнёры компаний, которые нанимают таких разработчиков: Яндекс, Сбер, Skyeng, МТС, VK, Skillbox. Они подтвердили, что этому стоит учить действующих инженеров.</p>' +
+        '<div class="dg-quotes">' +
+        '<blockquote><p class="dg-text">«Для мидлов и сеньоров это редкая возможность переосмыслить свой подход, не отрываясь от реальных задач.»</p><cite>Эксперт индустрии</cite></blockquote>' +
+        '<blockquote><p class="dg-text">«Большинство курсов учат инструментам. Этот учит думать иначе о своей работе, что важнее.»</p><cite>Эксперт индустрии</cite></blockquote></div></section>' +
+        `<section class="dg-offer"><p class="section__eyebrow">Оффер по итогам диагностики · до ${esc(o.until)}</p>` +
+        `<h2 class="dg-title">Скидка действует до старта потока, ${esc(o.until)}</h2>` +
+        '<ul class="dg-list">' +
+        `<li><span class="dg-mark">−${o.percent}%</span><span><b>Скидка ${o.percent}% на буткемп.</b> 20% при полной оплате плюс 5% дополнительно за прохождение диагностики. Командное участие считаем отдельно, там скидка выше.</span></li>` +
+        '<li><span class="dg-mark">подарок</span><span><b>Запись открытого урока по агентной разработке.</b> Доступ уже открыт, кнопка ниже.</span></li>' +
+        '<li><span class="dg-mark">15 мин</span><span><b>Разбор вашей карты развития с куратором.</b> Он же консультация, после которой оформляется участие.</span></li></ul>' +
+        `<div class="dg-price"><s>${money(o.fullPrice)} ₽</s><strong>${money(o.price)} ₽</strong><span class="dg-muted dg-small">5 модулей, полная оплата</span></div>` +
+        `<a class="btn btn--solid" href="${cfg.applyUrl}?utm_source=quiz&amp;utm_content=profile_${oc}#register">Записаться со скидкой ${o.percent}%</a>` +
+        `<p class="dg-text dg-muted dg-small">Можно начать с одного модуля за ${esc(o.modulePrice)}.</p>` +
+        '<hr class="dg-sep"><div class="dg-stack"><p class="dg-text dg-muted dg-small">А пока читайте наш канал: разборы и материалы по AI-разработке.</p>' +
+        `${tgButton('btn--outline', 'Подписаться на Telegram-канал')}</div></section>` +
+        // Урок открыт сразу после отправки формы; блок идёт последним, под ценой.
+        `${lessonBlock()}${again}`,
+      );
+    };
+
+    // Автопереход на следующий вопрос: после последнего или раньше, если вышли из диагностики.
+    const advance = () => {
+      if (i === 0 && isNotDev(answers)) return result();
+      if (i === 1 && isExit(answers)) return result();
+      if (i < total - 1) return question(i + 1);
+      const oc = outcome(answers);
+      return oc === 'A' || oc === 'B' ? result() : contact();
+    };
+
+    // Тап по варианту сразу ведёт дальше. Клавиатурой так нельзя: стрелки в группе
+    // радиокнопок меняют выбор, и первая же стрелка увела бы с вопроса. Поэтому
+    // автопереход только после pointerdown, а «Далее» есть у всех.
+    let byPointer = false;
+    root.addEventListener('pointerdown', () => { byPointer = true; });
+    root.addEventListener('keydown', () => { byPointer = false; });
+    root.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      if (target.type !== 'radio') return;
+      answers[target.name] = Number(target.value);
+      root.querySelector<HTMLButtonElement>('.dg-q.is-active [data-dg-next]')!.disabled = false;
+      if (!started) { started = true; goal('lesson_quiz_start'); }
+      if (byPointer) {
+        const at = i;
+        setTimeout(() => { if (i === at) advance(); }, 150);
+      }
+    });
+
+    root.addEventListener('click', (e) => {
+      const hit = (sel: string) => (e.target as Element).closest<HTMLElement>(sel);
+      if (hit('[data-dg-start]')) return question(0);
+      if (hit('[data-dg-next]')) return advance();
+      if (hit('[data-dg-back]')) return i > 0 ? question(i - 1) : intro();
+      if (hit('[data-dg-again]')) { answers = {}; return intro(); }
+      const chip = hit('[data-dg-goal]');
+      if (chip) {
+        const on = chip.getAttribute('aria-pressed') === 'true';
+        root.querySelectorAll('[data-dg-goal]').forEach((c) => c.setAttribute('aria-pressed', 'false'));
+        chip.setAttribute('aria-pressed', String(!on));
+        goalPick = on ? '' : (chip.dataset.dgGoal ?? '');
+      }
+    });
+
+    root.addEventListener('submit', async (e) => {
+      const form = e.target as HTMLFormElement;
+      if (!form.matches('[data-dg-form]')) return;
+      e.preventDefault();
+      const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
+      const errorEl = form.querySelector<HTMLElement>('[data-dg-error]')!;
+      const submit = form.querySelector<HTMLButtonElement>('[type="submit"]')!;
+      const showError = (text: string, el?: HTMLInputElement) => {
+        errorEl.textContent = text;
+        errorEl.hidden = !text;
+        form.querySelectorAll('[aria-invalid]').forEach((x) => x.removeAttribute('aria-invalid'));
+        if (el) { el.setAttribute('aria-invalid', 'true'); el.focus(); }
+      };
+
+      const name = field('name').value.trim();
+      const email = field('email').value.trim();
+      const tg = field('telegram').value.trim();
+      if (!name) return showError('Укажите имя.', field('name'));
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return showError('Проверьте адрес почты.', field('email'));
+      if (tg && !/^@?[A-Za-z0-9_]{4,}$/.test(tg)) return showError('Telegram указывают как @username.', field('telegram'));
+      if (!field('consent').checked) return showError('Нужно согласие на обработку персональных данных.', field('consent'));
+      showError('');
+
+      const comment = buildComment(
+        answers,
+        { goal: goalPick, telegram: tg && `@${tg.replace(/^@/, '')}` },
+        new Date().toLocaleDateString('ru-RU'),
+      );
+      const query = new URLSearchParams(location.search);
+
+      submit.disabled = true;
+      try {
+        const res = await fetch(cfg.leadUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name, email, comment,
+            source: 'diagnostic', // функция по этому ключу ставит новому контакту тег «диагностика»
+            website: field('website').value,
+            utmSource: query.get('utm_source'),
+            utmMedium: query.get('utm_medium'),
+            utmCampaign: query.get('utm_campaign'),
+            utmTerm: query.get('utm_term'),
+            utmContent: query.get('utm_content'),
+          }),
+        });
+        if (!res.ok) throw new Error(String(res.status));
+      } catch {
+        submit.disabled = false;
+        return showError('Не получилось отправить. Проверьте соединение и попробуйте ещё раз.');
+      }
+
+      grantAccess();
+      leadName = name;
+      goal('lesson_quiz_done');
+      result();
+    });
+
+    intro();
+  }
+</script>

@@ -1,0 +1,43 @@
+---
+// Служебное уведомление внизу экрана: заявки через сайт сейчас ограничены,
+// писать менеджеру в Telegram. Стоит на /dev/, последним элементом после
+// </footer>.
+//
+// Липкое к низу (position:sticky;bottom:0), а не fixed: пока страница
+// листается, плашка висит у нижнего края, а в самом конце встаёт на своё место
+// под футером и ничего не перекрывает. Поэтому ни отступ у body, ни замер
+// высоты не нужны — текст длинный и на телефоне встаёт в 4–5 строк.
+//
+// Наверх, к шапке и полоске CyberED, не ставили: на телефоне вместе вышло бы
+// под 200px закреплённой шапки. Крестика нет намеренно — это не реклама.
+const tg = 'AI_nation_ru';
+---
+<aside class="notice" role="status" aria-label="Важное объявление">
+  <p class="notice__text">
+    В связи с известными событиями в данный момент есть ограничения в приёме заявок через сайт — пожалуйста, пишите по вопросам и участию менеджеру в Telegram: <a class="notice__link" href={`https://t.me/${tg}`} target="_blank" rel="noopener">@{tg}</a>
+  </p>
+</aside>
+
+<style>
+  .notice{
+    position:sticky;bottom:0;
+    /* под панелью бургера (49), над контентом; модалки выше всех */
+    z-index:calc(var(--z-nav-panel) - 1);
+    padding:var(--sp-12) var(--pad-x) max(var(--sp-12), env(safe-area-inset-bottom));
+    background:var(--c-accent);color:var(--c-ink);
+  }
+  .notice__text{
+    margin:0 auto;max-width:960px;text-align:center;
+    font-family:var(--f-sans);font-size:var(--fs-14);line-height:20px;
+  }
+  .notice__link{
+    font-weight:700;white-space:nowrap;
+    text-decoration:underline;text-underline-offset:2px;
+  }
+  .notice__link:hover{text-decoration-thickness:2px}
+
+  @media (max-width:860px){
+    .notice{padding-top:var(--sp-10);padding-bottom:max(var(--sp-10), env(safe-area-inset-bottom))}
+    .notice__text{font-size:var(--fs-13);line-height:18px;text-align:left}
+  }
+</style>

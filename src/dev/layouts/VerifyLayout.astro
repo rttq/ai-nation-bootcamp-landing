@@ -1,0 +1,16 @@
+---
+// Общий каркас страниц верификации сертификатов (/verify и /verify/[id]).
+// On the «MINIMAL STEEL» design system; see REDESIGN-PLAN.md phase C.
+//
+// No page chrome beyond the wordmark: people arrive here from a QR code on a
+// printed certificate with exactly one question to answer.
+import BaseLayout from './BaseLayout.astro';
+
+const { title = "Проверка сертификата — NAITION" } = Astro.props;
+---
+<BaseLayout title={title} noindex>
+  <main class="verify">
+    <a class="lockup__name" href="/dev/">НЭЙШН</a>
+    <slot />
+  </main>
+</BaseLayout>

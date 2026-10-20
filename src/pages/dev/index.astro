@@ -1,0 +1,1212 @@
+---
+// Главная буткемпа разработки, дизайн-система «MINIMAL STEEL».
+//
+// Это полный порт прежней главной, которая до 2026-09-11 лежала рядом как
+// _index_old.astro. Файл удалён, версия осталась в истории git.
+//
+// Не сделано намеренно: остальной контент (первый экран, отзывы, авторы, FAQ)
+// не вынесен в src/dev/data/*.ts, инлайновый JS — в src/dev/scripts/. <head> и
+// Метрика приезжают из BaseLayout, скрипты FAQ и модалок — из
+// src/dev/scripts/common.js.
+//
+// Вынесено: программа, оффер, id формы заявки и данные первого экрана (facts,
+// gains, authors) лежат в src/dev/data/program.ts, их же берёт /dev/special/ —
+// правьте там, а не здесь.
+import BaseLayout from '../../dev/layouts/BaseLayout.astro';
+import PartnerStrip from '../../dev/components/PartnerStrip.astro';
+import NoticeBar from '../../dev/components/NoticeBar.astro';
+import LessonStrip from '../../dev/components/LessonStrip.astro';
+import LessonRegister from '../../dev/components/LessonRegister.astro';
+import { lessonFlows, lessonChains } from '../../dev/data/lesson-flows';
+import {
+  formatFacts, formatCallouts, lessonFormatItems, toBeats, modules,
+  included, materials, priceAmount, priceFooterNotes,
+  facts, gains, authors, videos, lessons,
+  signupWidgetId as testWidgetId, managerTgUrl,
+} from '../../dev/data/program';
+
+// Уроки программы свёрнуты, раскрыт только первый: как на /dev/special/. Программа длинная
+// (17 уроков), и открытым показываем один образец того, что внутри. Разметка и поведение
+// те же, что у special: шапка с кнопкой + тело в .lesson__top; скрипт — в common.js.
+const firstLesson = modules[0].lessons[0].num;
+
+// ============================================================================
+// Content — lifted verbatim from index.astro. See plan, "pure reskin": every
+// string carries over unchanged; only markup/CSS is new.
+// ============================================================================
+
+const quickLinks = [
+  { href: '#examples', label: 'Примеры уроков' },
+  // { href: '#about', label: 'Зачем учиться' },   // секция скрыта 17.09.2026
+  { href: '#audience', label: 'Для кого' },
+  { href: '#learn', label: 'Что ты получишь' },
+  { href: '#curriculum', label: 'Программа' },
+  { href: '#feedback', label: 'Отзывы' },
+  { href: '#committee', label: 'Авторы и эксперты' },
+  { href: '#faq', label: 'FAQ' },
+  { href: '#register', label: 'Форматы участия' },
+];
+
+// The persistent top nav only has room for a handful of links before it
+// overflows at 1280px (checked: 8 links + logo + CTA is 35px too wide with
+// no wrap allowed). The source system's own nav shows zero inline links —
+// full navigation lives in the burger — so trimming this to the
+// highest-traffic anchors and leaving the complete list in nav__panel and
+// the footer matches that pattern rather than fighting it.
+const navLinks = [
+  { href: '#examples', label: 'Примеры уроков' },
+  { href: '#curriculum', label: 'Программа' },
+  { href: '#committee', label: 'Комитет' },
+  { href: '#feedback', label: 'Отзывы' },
+  { href: '#register', label: 'Форматы участия' },
+];
+
+type TabItem = { h: string; t: string; source?: string };
+type Tab = { n: string; label: string; title: string; intro?: string[]; bullets?: string[]; outro?: string; items?: TabItem[]; cta?: { label: string; href: string } };
+
+const whyTabs: Tab[] = [
+  {
+    n: '1',
+    label: 'Рынок меняется прямо сейчас',
+    title: 'Рынок меняется прямо сейчас',
+    // Источники названы, но не связаны ссылкой. Это продающая страница:
+    // ссылка целым абзацем на Deloitte или LinkedIn уводит человека с неё
+    // ровно в тот момент, когда он читает главный аргумент. Имя источника
+    // и год подтверждают цифру не хуже ссылки, а кому нужно проверить —
+    // найдёт поиском. Адреса оставлены здесь, чтобы не потерять первоисточник:
+    //   Deloitte   https://www.deloitte.com/us/en/about/press-room/state-of-ai-report-2026.html
+    //   LinkedIn   https://www.linkedin.com/pulse/linkedin-jobs-rise-2026-25-fastest-growing-roles-us-linkedin-news-dlb1c
+    //   TechCrunch https://techcrunch.com/2026/05/04/anthropic-and-openai-are-both-launching-joint-ventures-for-enterprise-ai-services/
+    items: [
+      { h: 'Четверть команд сообщают о трансформации', t: 'Доля лидеров, сообщающих о трансформирующем эффекте AI на их компании, за год выросла более чем вдвое и достигла 25%.', source: 'Deloitte, State of AI in the Enterprise, 2026' },
+      { h: 'Новые профессии растут быстрее старых', t: 'Спрос на forward deployed engineers и похожие роли вырос в 42 раза с 2023 по 2025 год, а AI engineer стал самой быстрорастущей профессией в США в 2026 году.', source: 'LinkedIn, Jobs on the Rise, 2026' },
+      { h: 'Технологические гиганты перестраивают штат', t: 'В мае и июне 2026 года OpenAI, Anthropic, AWS и Databricks за шесть недель вложили более 6,5 млрд долларов в отдельные подразделения forward deployed engineering, закрепив эту роль на уровне крупнейших технологических компаний мира.', source: 'TechCrunch, май 2026' },
+    ],
+  },
+  {
+    n: '2',
+    label: 'Мы в эпицентре этого сдвига',
+    title: 'Мы в эпицентре этого сдвига',
+    intro: [
+      'Рост доли продуктовых задач не означает, что появится только одна профессия. Внутри этого сдвига уже появляются конкретные новые роли, AI-инженер, forward deployed engineer, продуктовый инженер, и список будет меняться дальше.',
+      'Разбираться в таком потоке проще рядом с людьми, которые сами в нём работают.',
+    ],
+    bullets: [
+      'Автор 2 — staff-инженер в Google',
+      'Автор 1 работал в Yandex Cloud и сейчас является AI-архитектором в собственном проекте',
+      'Автор 3 как CEO компании по подбору IT-специалистов сам нанимает специалистов на такие роли и каждый день имеет дело с тем, как эти требования меняются',
+    ],
+    outro: 'Материалов такого уровня погружения на русском языке крайне мало.',
+    cta: { label: 'Подробнее про авторов', href: '#committee' },
+  },
+  {
+    n: '3',
+    label: 'Почему не учиться самому?',
+    title: 'Самостоятельное обучение может привести не туда',
+    items: [
+      { h: 'Промт-инженеринг устарел за полгода', t: 'Ещё недавно многие вкладывались в отдельную специализацию по промт-инженерингу как в самостоятельную профессию. Сегодня бизнесу это почти не нужно само по себе, инструменты изменились быстрее, чем успел закрепиться навык. Тот же риск сейчас стоит перед контекст-инженерингом и другими узкими практиками, которые на слуху именно в этом году.' },
+      { h: 'Без ориентира легко потратить время впустую', t: 'Ролики и статьи в открытом доступе рассказывают о конкретных приёмах, но редко объясняют, что из этого нужно рынку. Без фильтра легко потратить месяцы на инструмент, который через полгода станет нерелевантным. Буткемп даёт набор инструментов и навыков, собранных людьми, которые каждый день используют AI в коммерческих проектах.' },
+      { h: 'Практика с обратной связью закрепляет навык', t: 'Знание, полученное без проверки, легко забывается или применяется неверно. На буткемпе каждая практика разбирается с командой и не уходит «в стол». Портфолио и обратная связь фиксируют навык в рабочем виде, который можно показать работодателю или применить в задачах уже сейчас.' },
+    ],
+  },
+];
+
+const roles = [
+  { num: '01', title: 'Middle / Senior / Lead-разработчик' },
+  { num: '02', title: 'Solution Architect' },
+];
+
+const audienceItems = [
+  { num: '01', title: 'Мыслишь продуктом', text: 'Понимаешь, что код это средство достижения целей бизнеса. Фокусируешься на результате.' },
+  { num: '02', title: 'Активно развиваешься', text: 'Читаешь, экспериментируешь, инвестируешь в обучение. 5–7+ лет опыта.' },
+  { num: '03', title: 'Влияешь на команду', text: 'Проводишь код ревью, менторишь. Готов стать лидером трансформации.' },
+  { num: '04', title: 'Скептик, но открыт к новому', text: 'Подозрительно относишься к AI, но готов глубоко разобраться и проверять возможности.' },
+  { num: '05', title: 'Ограничен временем', text: 'Имеешь полноценную работу, семью, из-за чего нет времени на самостоятельное обучение, не хочешь учиться годами.' },
+  { num: '06', title: 'Хочешь контролируемые результаты', text: 'Не веришь в «волшебные таблетки». Хочешь понимать, что происходит под капотом.' },
+];
+
+const learnItems = [
+  { lead: 'Создание фич в разы быстрее', text: 'используя AI в цикле ресерч → план → внедрение → тест → ревью' },
+  { lead: 'Настраивать AI-driven окружение', text: 'RAG-системы, MCP, SPEC-разработка, агенты, контекст под твой стек' },
+  { lead: 'Управлять контекстом', text: 'подключать AI к кодовой базе, вики проекта, внешним сервисам' },
+  { lead: 'Избегать галлюцинаций и контролировать результат', text: 'процессы, которые ловят ошибки до продакшена' },
+  { lead: 'Управлять агентами', text: 'несколько агентов в одной кодовой базе, автоматизация рутины и ощутимая помощь в сложных задачах' },
+  { lead: 'Работать со сложными системами', text: 'рефакторинг крупных проектов, работа с легаси, архитектурная трансформация, дробление монолитов на микросервисы и наоборот' },
+  { lead: 'Держать полноценную AI-команду', text: 'бекэнд / фронтэнд разработчики, системный аналитик и DevOps создают полноценный рабочий продукт' },
+  { lead: 'Масштабировать на команду', text: 'AI-driven процессы, корпоративная академия, трансформация SDLC организации' },
+];
+
+const testimonials = [
+  { headline: 'Не разработчик, а материал не прошёл стороной', photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Участник 1', role: 'Системный бизнес-аналитик · 14 лет в IT', stack: '// GoLang · Swift · Angular · Kotlin · XCode · Android Studio', company: 'NDA, FinTech', quote: 'Я аналитик, не разработчик, поэтому рассчитывал, что часть материала пройдёт стороной. Но преподаватели объясняют достаточно подробно, не перегружают терминологией, и сдвиги в восприятии всё равно происходят. Ещё не ожидал, что будет настолько интенсивно: трёхчасовые занятия под конец дают о себе знать, но переносится нормально. Моя цель была разобраться, насколько реально автоматизировать работу аналитика: сбор требований, планирование, передачу в разработку. Курс даёт для этого хорошую базу и практические навыки использования различных инструментов.' },
+  { headline: 'Разобрался, как создавать и выстраивать агентов', photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Участник 2', role: 'Senior-разработчик · 5–7 лет в IT', stack: '// PHP · Laravel · SQL', company: 'NDA', quote: 'Наиболее ценными оказались первые уроки: о становлении ИИ и направлении его развития, о том, как устроены модели изнутри. После них всё сложилось в систему. Ожидал, что научат работать с моделями, но получил больше: разобрался, как создавать и выстраивать агентов, применение SDD в работе снизило количество ошибок понимания модели и ускорило работу, а также помогло выстроить обсуждение внедрения ИИ внутри команды. Преподаватели показали себя настоящими экспертами, которые сами работают с AI и понимают технологию изнутри. Материала много, иногда сложно переваривать, но кажется, что иначе никак: знание и понимание важнее, практику можно нагнать самостоятельно.' },
+  { headline: 'Симулятор на первом уроке сильно вовлекал', photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Участник 3', role: 'CEO/Founder · более 7 лет в IT', stack: '// Claude · ChatGPT · C++ · Qt · Data Science/ML/AI · On-prem Enterprise', company: 'ООО «Инжэниус Тим», fnow.ru', quote: 'Самым интересным и неожиданным оказался первый урок, где был симулятор и возможность сабмитить результаты улучшения лендинга. Идея обучения агентов на симуляторах мне всегда нравилась, а здесь она была показана отлично и сильно вовлекала. Одним из самых полезных стал разбор уже существующего кода и того, из чего состоит агентская система. Ожидал получить более техническое и системное представление о разработке с ИИ, ожидания оправдались на 70-80 процентов. Постоянно стараюсь применять и тестировать всё, что узнаю, в том числе с буткемпа. Впечатление от преподавателей положительное, хотелось бы, чтобы они были более open-minded. Формат в целом хороший, но хотелось бы больше баланса: чтобы урок не провисал, когда что-то ставим, и чтобы во время теории агентам параллельно давали какое-то задание. Сложность вполне ок, только было странно, что требуют выполнять некоторые задания руками, когда речь идёт об агентской разработке. Не согласен с таким посылом: мышление через взаимодействие с агентом во всех задачах прокачивает человека и расширяет паттерны мышления.' },
+  { headline: 'Уроки похожи на обмен опытом между инженерами', photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Участник 4', role: 'Senior-разработчик · более 7 лет в IT', stack: '// Java · Spring Framework', company: 'NDA', quote: 'На буткемпе ожидал познакомиться с практическими подходами к агентной разработке, и материал этому ожиданию соответствует. В работе применяю openspec, о котором рассказывали все преподаватели, поднимаю RAG по базе знаний внутренней платформы и использую подходы к проверке качества с уроков автора. Часть материала, например создание агентских систем на google cloud, лично мне не особо применима, но было интересно разобраться, как это устроено. Уроки больше похожи на обмен опытом между инженерами, каждый из которых глубже погружён в свою область, чем на лекции с передачей знаний от преподавателя к студенту. Люди на курсе приятные, интересно узнавать, кто чем занимается и где применяет ИИ. Нагрузка адекватная, больше уже было бы перебором. Сложность для меня комфортная: многое уже знакомо, но каждый раз узнаю что-то новое.' },
+  { headline: 'Собрал spec-driven фреймворк у себя в компании', photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Участник 5', role: 'Middle-разработчик · 5 лет в IT', stack: '// Vue 3 · Laravel 11+ · PHP · TS · Docker · YAML', company: 'NDA', quote: 'До курса довольно плотно изучал работу с AI, поэтому ожидал не столько новых инструментов, сколько более обоснованного понимания. Курс разложил всё по полочкам, плюс получил множество удобных дополнительных материалов для работы с ИИ. Самый ощутимый результат — после урока по spec-driven разработке сделал упрощённый вариант фреймворка у себя: теперь активно документируем модули по этому сценарию, у разработчиков и бизнеса стало меньше вопросов по старым модулям. В целом всем доволен, часть материала уже применяю. Из пожеланий — хотелось бы иметь доступы к необходимым подпискам и знать о них заранее.' },
+  { headline: 'Деньги потрачены не зря', photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Участник 6', role: 'Senior-разработчик · 7 лет в IT', stack: '// Kotlin · Java · TypeScript · Spring', company: 'Proftech IT', quote: 'Занимаюсь агентами уже какое-то время, хотелось получить концентрированную информацию о том, как правильно выстраивать цепочки, как это делать оптимально. Самому на это уходит много времени. На одном из первых уроков засомневался, показалось, что это не то, за чем пришёл. Потом курс вышел на агентскую часть, и это оказалось именно тем, что нужно, именно в той глубине, в которой хотел. Деньги точно были потрачены не зря.' },
+  { headline: 'Хотелось попасть на каждое занятие', photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Участник 7', role: 'Lead-разработчик · 7 лет в IT', stack: '// JS/TS · React · Angular · Vue · Node.js · Express · NextJS · AWS', company: 'NDA', quote: 'Долго присматривался к буктемпу, новый продукт, отзывов почти нет. В итоге решился. Содержание движется от базового к сложному, как и было заявлено, то есть ожидания оправдались. Есть темы, которые уже знал, есть те, о которых не слышал. По ходу уроков хотелось попасть на каждое занятие. Буткемп в целом идёт полезно.' },
+  { headline: 'Ушёл учиться по записям и ничего не потерял', photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Участник 8', role: 'Senior-разработчик · 7 лет в IT', stack: '// React · JS · TS', company: 'NDA', quote: 'Темой интересуюсь давно, поэтому половина материала была уже знакома. Другая половина оказалась новой и прикладной, получается применять на практике. Поначалу ходил на живые уроки, потом стало неудобно по времени и перешёл на записи. Для прохождения в записи всё есть. В целом впечатления положительные.' },
+];
+
+type Student = { name: string; photo?: string };
+type Stream = { n: string; label: string; note?: string; active: boolean; students: Student[] };
+const SILHOUETTE = '/dev/facebook-anonymous-silhouette.webp';
+
+/*
+ * Инициалы для монограммы. Фото есть не у всех, а силуэт-заглушка читалась
+ * как «человека нет». Берём первые буквы двух слов; «Иванов-Петров»
+ * считается одним словом, третья буква в квадрат не влезает.
+ */
+const initials = (name: string): string =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? '')
+    .join('');
+
+
+const streams: Stream[] = [
+  {
+    n: '1', label: 'Поток 1', active: true,
+    students: [
+      { name: 'Выпускник 1.1' },
+      { name: 'Выпускник 1.2' },
+      { name: 'Выпускник 1.3' },
+      { name: 'Выпускник 1.4' },
+      { name: 'Выпускник 1.5' },
+      { name: 'Выпускник 1.6' },
+    ],
+  },
+  {
+    n: '2', label: 'Поток 2', active: true,
+    students: [
+      { name: 'Выпускник 2.1' },
+      { name: 'Выпускник 2.2' },
+      { name: 'Выпускник 2.3' },
+      { name: 'Выпускник 2.4' },
+      { name: 'Выпускник 2.5' },
+      { name: 'Выпускник 2.6' },
+    ],
+  },
+  { n: '3', label: 'Поток 3', note: 'с 13 октября', active: false, students: [] },
+];
+// Потоки переключаются, а не складываются: при загрузке открыт первый активный.
+const openStream = streams.find((s) => s.active)?.n;
+
+const committee = [
+  { photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Эксперт 1', role: 'Эксперт индустрии', quote: '«Подход через спецификации и управление контекстом — правильный фундамент. Specification-driven development как практика сюда органично вписывается.»' },
+  { photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Эксперт 2', role: 'Эксперт индустрии', quote: '«Те, кто начали применять ИИ, уже получают конкретный профит — в карьере, в скорости, в том, что можно взяться за задачи другого масштаба. Крупные компании на это смотрят и начинают спрашивать на собеседованиях. Программа про этот переход, и материала достаточно.»' },
+  { photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Эксперт 3', role: 'Эксперт индустрии', quote: '«Разработчик, который прошёл такую программу целиком — от MCP-серверов до архитектурной трансформации больших проектов — это готовый AI-driven инженер, за которого на рынке сейчас конкурируют.»' },
+  { photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Эксперт 4', role: 'Эксперт индустрии', quote: '«Уверенный буткемп про смену роли разработчика. Важно, что в конце затронута тема организационных изменений — это обычно самое слабое место подобных программ. Здесь это закрыто.»' },
+  { photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Эксперт 5', role: 'Эксперт индустрии', quote: '«Плотный буткемп, каким и должен быть для аудитории разработчиков. Я бы и сам такое послушал. Чувствуется, что материал выстроен людьми, которые понимают, как реально устроена разработка изнутри.»' },
+  { photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Эксперт 6', role: 'Эксперт индустрии', quote: '«Структура выстроена осмысленно, программа прошла через серьёзную работу. Путь от простых кейсов к архитектурным задачам выстроен последовательно.»' },
+  { photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Эксперт 7', role: 'Эксперт индустрии', quote: '«Для мидлов и сеньоров это редкая возможность переосмыслить свой подход, не отрываясь от реальных задач.»' },
+  { photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Эксперт 8', role: 'Эксперт индустрии', quote: '«Большинство курсов учат инструментам. Этот учит думать иначе о своей работе, что важнее.»' },
+];
+
+const committeeExtra = [
+  { photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Эксперт 9', role: 'Эксперт индустрии' },
+  { photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Эксперт 10', role: 'Эксперт индустрии' },
+  { photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Эксперт 11', role: 'Эксперт индустрии' },
+  { photo: '/dev/facebook-anonymous-silhouette.webp', name: 'Эксперт 12', role: 'Эксперт индустрии' },
+];
+
+const faqItems = [
+  { q: 'Буткемп подойдёт мне, если я уже пользуюсь ChatGPT/Copilot/Claude или другим инструментом?', a: 'Да, и скорее всего именно для вас он будет наиболее ценным. Базовое использование AI — это первый уровень из трёх: AI как поисковик, AI как помощник, AI как продакшн слой со своим пайплайном. Буткемп начинается там, где заканчивается большинство туториалов: контекст-инжиниринг, мультиагентная система, работа с реальными кодовыми базами, безопасный рефакторинг. Если вы уже используете автодополнение или другие отдельные практики — вы сэкономите время на старте и быстрее перейдёте к практике.' },
+  { q: 'Как буткемп поможет, если я не доверяю качеству AI-кода?', a: 'Скептицизм — правильная стартовая позиция, и буткемп строится именно вокруг неё. Центральный принцип программы называется trust but verify: AI генерирует быстро, но ответственность за качество остаётся за разработчиком. На практике это означает: как формулировать задачу так, чтобы минимизировать галлюцинации; как выстраивать проверки через юнит-тесты и код ревью; как сохранять понимание кода при делегировании агентам.' },
+  { q: 'Подойдёт ли буткемп под мой стек и язык?', a: 'Буткемп работает с любым стеком. Практика построена на принципах, применимых в любом языке и фреймворке: контекст-инжиниринг, системная декомпозиция, работа с легаси кодом. Один из ключевых кейсов — восстановление архитектуры большого проекта на незнакомом языке программирования. Именно эта способность — работать с любым стеком через AI — является одним из главных результатов программы. Если у вас нишевый язык или специфичная БД, обсудите ваш кейс с куратором до старта.' },
+  { q: 'Чем это отличается от курсов по промптингу, которых полно?', a: 'Промптинг — это техника составления запросов. Буткемп про другое: как встроить AI в реальный инженерный процесс так, чтобы это давало контролируемый результат на рабочих задачах. Каждый урок строится вокруг реального коммерческого кейса. Сертификация — портфолио из 3–5 внедрений на вашем рабочем проекте.' },
+  { q: 'AI заменит разработчиков — зачем тогда учиться?', a: 'Писать код строчка за строчкой перестаёт быть дефицитом. Дефицитом становится понимание систем, архитектурное мышление, контроль качества и способность управлять AI как инструментом. Разработчик с AI конкурирует с разработчиком без AI, который делает ту же работу в 3–5 раз медленнее. Буткемп про то, как занять позицию архитектора решений и почти полностью отойти от ручного ввода.' },
+  { q: 'Будут ли реальные кейсы или только теория?', a: 'Каждый урок построен вокруг конкретного кейса: перенос многостраничного Figma-проекта во фронтенд за минуты, восстановление архитектуры легаси кода на незнакомом языке, безопасный рефакторинг большого проекта с GitHub, разбиение монолита на микросервисы и обратно и ещё 10 кейсов. Теория занимает не более 10–30 минут из 3 часов в начале урока, остальное время это демонстрация, самостоятельная практика и живое обсуждение.' },
+  { q: 'И всё же, буткемп для разработчиков или для менеджеров?', a: 'Для разработчиков middle+ и senior уровня с 5+ годами опыта. Вся практика построена на инженерных задачах и требует хорошего понимания кода. Последний урок про масштабирование на команду рассчитан на тех, кто уже влияет на технические решения в компании, хочет проявить себя в трансформации команды, либо хочет понять, как это уже происходит в компаниях.' },
+  { q: 'Что я буду уметь делать после буткемпа — конкретно?', a: 'Переносить многостраничный дизайн из Figma в работающий проект за минуты. Контролировать и улучшать качество результатов от ИИ, управляя контекстом. Восстанавливать архитектуру незнакомой кодовой базы без документации. Проводить безопасный рефакторинг большого легаси проекта. Настраивать агентов для автоматизации рутинных задач — документация, тесты, code review — и для помощи в сложных задачах, как проектирование архитектуры и написание соответствующей спецификации. Формулировать эти спецификации так, чтобы агенты минимально отклонялись от плана. Оптимизировать затраты токенов на разные типы задач.' },
+  { q: 'Буткемп про инструменты или про подход к работе?', a: 'Инструменты и подход идут вместе. Cursor, Claude Code, n8n, MCP, векторные БД — всё это и многое другое появляется в контексте реальных задач. Поскольку инструменты меняются каждые несколько месяцев, акцент на паттернах: как думать о задаче, как декомпозировать систему, как выстраивать контроль качества. Конкретные инструменты — способ показать паттерн в действии.' },
+  { q: 'Как получить доступ к зарубежным моделям из России?', a: 'Напишите об этом менеджеру или куратору. Мы подходим к решению каждого случая индивидуально.' },
+];
+
+const footerNav = [
+  // { href: '#about', label: 'О программе' },    // секция скрыта 17.09.2026
+  { href: '#audience', label: 'Для кого' },
+  { href: '#curriculum', label: 'Программа' },
+  { href: '#committee', label: 'Авторы и эксперты' },
+  { href: '#feedback', label: 'Обратная связь' },
+  { href: '#faq', label: 'FAQ' },
+  { href: '#register', label: 'Форматы участия' },
+];
+
+// Отдельные страницы лендинга. До этого на них не вело ни одной ссылки:
+// в карте сайта они были, а в разметке — нет, и обходчик до них не доходил.
+const footerPages = [
+  { href: '#', label: 'Карта навыков' },
+  { href: '#', label: 'Комьюнити' },
+  { href: '#', label: 'Корпоративный формат' },
+  { href: '#', label: 'О нас' },
+];
+
+const footerLegal = [
+  { href: '#', label: 'Публичная оферта' },
+  { href: '#', label: 'Пользовательское соглашение' },
+  { href: '#', label: 'Политика обработки персональных данных' },
+  { href: '#', label: 'Cookie-политика' },
+  { href: '#', label: 'Согласие на обработку ПД (рассылки)' },
+];
+
+// Структурированная разметка. Поисковик читает страницу как набор блоков
+// текста и сам догадывается, что это курс; JSON-LD говорит об этом прямо.
+// Здесь только то, что написано на самой странице: расхождение разметки
+// с видимым текстом хуже, чем её отсутствие.
+const structuredData = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'НЭЙШН',
+    url: 'https://ai-nation.ru/',
+    email: 'support@ai-nation.ru',
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Course',
+    name: 'AI DRIVEN РАЗРАБОТКА',
+    description:
+      'Двенадцатинедельный буткемп по разработке с AI: спецификации, агенты-ревьюеры, прод-контур и оценка качества.',
+    url: 'https://ai-nation.ru/dev/',
+    inLanguage: 'ru',
+    provider: { '@type': 'Organization', name: 'НЭЙШН', url: 'https://ai-nation.ru/' },
+    hasCourseInstance: {
+      '@type': 'CourseInstance',
+      courseMode: 'online',
+      courseWorkload: 'P12W',
+      startDate: '2026-10-13',
+      inLanguage: 'ru',
+    },
+  },
+  // Вопросы и ответы берутся из того же массива, что и видимый блок FAQ:
+  // разметка не может разойтись с текстом страницы.
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqItems.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: { '@type': 'Answer', text: item.a },
+    })),
+  },
+];
+
+const marqueeText = 'AI-DRIVEN РАЗРАБОТКА · ПОТОК_03 · НАБОР ОТКРЫТ · СТАРТ 13 ОКТЯБРЯ · МЕСТА ОГРАНИЧЕНЫ · ';
+---
+<BaseLayout
+  title="AI DRIVEN РАЗРАБОТКА — 12-недельный буткемп"
+  structuredData={structuredData}
+  description="Двенадцать недель практики: спецификации, агенты-ревьюеры, прод-контур и оценка качества. Семнадцать занятий и артефакт после каждого модуля."
+  widget
+>
+
+<!-- ============================== NAV ============================== -->
+<nav class="nav">
+  <div class="lockup">
+    <span class="lockup__name">НЭЙШН</span>
+  </div>
+  <div class="nav__announce">
+    <p class="nav__announce-top">Старт 3 потока — 13 октября</p>
+    <p class="nav__announce-sub">Набор открыт</p>
+  </div>
+  <div class="nav__links">
+    {navLinks.map((l) => <a class="nav__link" href={l.href}>{l.label}</a>)}
+  </div>
+  <button class="nav__burger" type="button" aria-expanded="false" aria-controls="nav-panel" aria-label="Меню" data-js="burger">
+    <span class="nav__burger-box"><span></span><span></span><span></span></span>
+  </button>
+  <a class="nav__cta nav__cta--desktop" href={managerTgUrl} target="_blank" rel="noopener" data-modal-open="tg">Записаться</a>
+</nav>
+<PartnerStrip />
+<div class="nav__panel" id="nav-panel">
+  <div class="nav__panel-inner">
+    {quickLinks.map((l) => <a class="nav__link" href={l.href}>{l.label}</a>)}
+    <a class="nav__cta" href={managerTgUrl} target="_blank" rel="noopener" data-modal-open="tg">Записаться</a>
+  </div>
+</div>
+
+<main id="main-content">
+
+<!-- ============================== HERO ============================== -->
+<section class="hero">
+  <div class="hero__inner hero__inner--split">
+    {/* Аудит 11.09. Прежний первый экран открывался брендом: h1 на 112px
+        говорил «AI >> NATIVE DEVELOPER», и по нему нельзя понять, что тут
+        продают. Бренд новый, работать как «Apple» он ещё не может. Поэтому
+        иерархия перевёрнута: сначала по-русски что это за продукт, следом
+        выгода, следом ёмкая строка про формат и артефакты, следом цифры.
+        Сам бренд остался — ушёл в эйбрау. */}
+    <div class="hero__main">
+      <p class="hero__eyebrow">[bootcamp_03] // AI &gt;&gt; NATIVE DEVELOPER</p>
+      <h1 class="hero__title hero__title--long hero__title--balance">Онлайн-буткемп для разработчиков по внедрению <br><span class="hero__title-mark">AI в рабочий процесс</span></h1>
+      <h2 class="hero__sub">Увеличьте продуктивность разработки <br> с <span class="nowrap">AI-DRIVEN</span> подходом</h2>
+      <div class="hero__gains grid-3">
+        {gains.map((g) => (
+          <article class="card card--grey">
+            <p class="card__text">{g}</p>
+          </article>
+        ))}
+      </div>
+      {/* Срок стоял только в .nav__announce, а та скрыта ниже 768 — на телефоне
+          дату старта было негде увидеть. Теперь она вплотную над кнопкой. */}
+      <p class="hero__start"><span class="hero__start-dot" aria-hidden="true"></span>Старт третьего потока — 13 октября · набор открыт</p>
+      <div class="cta-row cta-row--wide">
+        <a class="btn btn--solid btn--wide" href={managerTgUrl} target="_blank" rel="noopener" data-modal-open="tg">Записаться на буткемп</a>
+      </div>
+      {/* Цифры стоят ПОСЛЕ кнопок: до них доходит тот, кто уже прочитал, что
+          это и что он соберёт, и кому нужны параметры, а не обещание.
+          Порядок один на всех ширинах — переставлено разметкой, не order. */}
+      <div class="hero__facts">
+        {facts.map((f) => (
+          <div class="fact">
+            <div class="fact__rule"></div>
+            <p class="fact__num">{f.num}</p>
+            <p class="fact__label">{f.label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div class="hero__experts">
+      <p class="label">Ведут буткемп</p>
+      <ul class="hero__experts-list">
+        {authors.map((p) => (
+          <li class="hero__expert">
+            <img class="hero__expert-photo" src={p.photo} alt={p.name} width="128" height="128" decoding="async" />
+            <div class="hero__expert-body">
+              <p class="hero__expert-name">{p.name}</p>
+              <p class="hero__expert-meta">{p.teaser.meta}</p>
+              <p class="hero__expert-focus">{p.teaser.focus}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<LessonStrip />
+
+<!-- ============================== MARQUEE ============================== -->
+<section class="marquee" aria-label="Ключевые параметры потока">
+  <div class="marquee__track">
+    <p class="marquee__text">{marqueeText.repeat(3)}</p>
+    <p class="marquee__text" aria-hidden="true">{marqueeText.repeat(3)}</p>
+  </div>
+</section>
+
+<!-- ============================== КОМАНДА ============================== -->
+{/* Ролики переехали сюда из модалки, которую открывала вторая кнопка героя.
+    Модалку и её кнопку сняли: обращение авторов работает как знакомство,
+    а знакомство не должно требовать клика. Загрузка ленивая (loading="lazy"),
+    поэтому сторонний плеер не тянется, пока секция не подъедет к экрану. */}
+<section class="section section--white" id="team" aria-label="Наша команда">
+  <div class="section__inner">
+    <div class="section__head">
+      <div class="section__head-l">
+        <p class="section__eyebrow">[team] // Кто ведёт</p>
+        <h2 class="section__title">Наша <span class="section__title-mark">команда</span></h2>
+        <p class="section__note">Обращение от авторов</p>
+      </div>
+    </div>
+    <div class="grid-2">
+      {videos.map((v) => (
+        <div>
+          <p class="video__label">{v.label}</p>
+          <div class="video__frame">
+            <iframe src={v.src} loading="lazy" title={`Обращение от авторов ${v.label.replace('// ', '')}`} frameborder="0" allow="accelerometer; fullscreen; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+          </div>
+        </div>
+      ))}
+    </div>
+    <div class="video-block" id="examples">
+      <p class="section__eyebrow">[lessons] // Записи занятий</p>
+      <h3 class="module__title">Как проходят уроки</h3>
+      {/* data-carousel="center" переключает общий скрипт на вторую повадку:
+          активный слайд по центру, соседи приглушены, кольца нет. Без
+          атрибута карусель ведёт себя как лента отзывов ниже. */}
+      <div class="carousel carousel--center" data-carousel="center">
+        <div
+          class="carousel__track"
+          data-js="carousel-track"
+          tabindex="0"
+          role="group"
+          aria-label="Записи уроков, прокручивается по горизонтали"
+        >
+          {lessons.map((l, i) => (
+            <div class={`carousel__card carousel__card--video${i === 0 ? ' is-active' : ''}`} data-js="center-slide">
+              <p class="video__label video__label--title" title={l.title}>{l.title}</p>
+              <div class="video__frame">
+                <iframe src={l.src} loading="lazy" title={l.title} frameborder="0" allow="accelerometer; fullscreen; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div class="carousel__controls">
+          <div class="carousel__nav">
+            <button type="button" class="carousel__arrow" data-js="carousel-prev" aria-label="Назад">←</button>
+            <button type="button" class="carousel__arrow" data-js="carousel-next" aria-label="Вперёд">→</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cta-row">
+      {/* flex-basis, а не 400px: ниже 768 .cta-row разворачивается в колонку,
+          и basis начинает задавать ВЫСОТУ — параграф распирало на 400px
+          пустоты перед кнопкой. auto растягивает его по строке на десктопе
+          ровно так же (grow:1), но на телефоне высота идёт по тексту. */}
+      <p class="section__note" style="flex:1 1 auto">Окно возможностей открыто. Третий поток стартует 13 октября.</p>
+      <a class="btn btn--solid" href={managerTgUrl} target="_blank" rel="noopener" data-modal-open="tg">Записаться</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== ЗАЧЕМ УЧИТЬСЯ ============================== -->
+{/* Скрыто 17.09.2026. Вернуть — снять hidden и раскомментировать пункты
+    «#about» в quickLinks и footerNav. */}
+<section class="section section--bg" id="about" aria-label="Зачем учиться" hidden>
+  <div class="section__inner">
+    <div class="section__head">
+      <div class="section__head-l">
+        <p class="section__eyebrow">[about] // Зачем учиться</p>
+        <h2 class="section__title">AI в разработке освоили многие. <br> <span class="section__title-mark">Встроить его в реальный процесс — другая задача.</span></h2>
+      </div>
+      <div class="section__head-r section__head-r--tight">
+        <div class="section__rule"></div>
+        <p class="section__note">И это работает, но это не то, как действительно сейчас меняются процессы в крупных компаниях и на что есть растущий интерес со стороны заказчиков.</p>
+      </div>
+    </div>
+
+    <div class="tabs" data-js="tabs">
+      <div class="tabs__nav" role="tablist" aria-label="Почему сейчас">
+        {whyTabs.map((tab, i) => (
+          <button type="button" class="tabs__btn" role="tab" id={`tab-${tab.n}`} aria-controls={`panel-${tab.n}`} aria-selected={i === 0 ? 'true' : 'false'} data-tab={tab.n} data-js="tabs-btn">
+            <span class="tabs__btn-num">{tab.n}</span><span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+      <div>
+        {whyTabs.map((tab, i) => (
+          <div class="tabs__panel" role="tabpanel" id={`panel-${tab.n}`} aria-labelledby={`tab-${tab.n}`} data-panel={tab.n} data-active={i === 0 ? 'true' : undefined}>
+            <h3 class="tabs__panel-title">{tab.title}</h3>
+            {tab.intro && tab.intro.map((p) => <p class="tabs__lead">{p}</p>)}
+            {tab.bullets && (
+              <ul class="tabs__bullets">
+                {tab.bullets.map((b) => <li>{b}</li>)}
+              </ul>
+            )}
+            {tab.outro && <p class="tabs__lead">{tab.outro}</p>}
+            {tab.items && tab.items.map((item) => (
+              <div class="tabs__item">
+                <p class="tabs__item-h">{item.h}</p>
+                <p class="tabs__item-t">{item.t}</p>
+                {item.source && <p class="tabs__item-src">{item.source}</p>}
+              </div>
+            ))}
+            {tab.cta && <a class="tabs__cta" href={tab.cta.href}>{tab.cta.label} →</a>}
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== ДЛЯ КОГО ============================== -->
+<section class="section section--bg" id="audience" aria-label="Для кого">
+  <div class="section__inner">
+    <div class="section__head">
+      <div class="section__head-l">
+        <p class="section__eyebrow">[audience] // Для кого</p>
+        <h2 class="section__title">Для разработчиков с <br> <span class="section__title-mark">продуктовым мышлением</span></h2>
+      </div>
+    </div>
+
+    <div class="grid-2" style="max-width:640px">
+      {roles.map((r) => (
+        <div class="plate">
+          <p class="plate__label">{r.num}</p>
+          <p class="plate__text">{r.title}</p>
+        </div>
+      ))}
+    </div>
+
+    <div class="popover-wrap">
+      <button type="button" class="popover-btn" data-js="popover-toggle" aria-expanded="false" aria-controls="prereq-hint">Что если я не разработчик?</button>
+      <div class="popover" id="prereq-hint" hidden>Если вы не разработчик, сообщите нам об этом. Мы проводим короткий опрос, чтобы убедиться, что программа будет действительно актуальна для вас.</div>
+    </div>
+
+    <p class="label label--muted" style="font-size:16px;text-transform:none;letter-spacing:0;font-family:var(--f-sans);color:var(--c-ink);font-weight:500">Каков твой портрет</p>
+    <div class="list">
+      {audienceItems.map((a) => (
+        <div class="list__row">
+          <p class="list__num">{a.num}</p>
+          <p class="list__text"><strong>{a.title}</strong><br>{a.text}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<!-- ============================== ЧТО ТЫ ПОЛУЧИШЬ ============================== -->
+<section class="section section--bg" id="learn" aria-label="Что ты получишь">
+  <div class="section__inner">
+    <div class="section__head">
+      <div class="section__head-l">
+        <p class="section__eyebrow">[outcomes] // Результат</p>
+        <h2 class="section__title">Что ты научишься <br> <span class="section__title-mark">делать</span></h2>
+      </div>
+    </div>
+    <div class="list">
+      {learnItems.map((l) => (
+        <div class="list__row">
+          <p class="list__num">→</p>
+          <p class="list__text"><strong>{l.lead}</strong> — {l.text}</p>
+        </div>
+      ))}
+    </div>
+    <div class="plate plate--mint">
+      <p class="plate__label">На деле это</p>
+      <p class="plate__text">больше влияния на продукт, рост ценности на рабочем месте и рынке труда, рост зарплаты</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== ПРОГРАММА ============================== -->
+<section class="section section--white" id="curriculum" aria-label="Программа буткемпа">
+  <div class="section__inner">
+    <div class="section__head">
+      <div class="section__head-l">
+        <p class="section__eyebrow">[curriculum] // Программа</p>
+        <h2 class="section__title">Программа <br> <span class="section__title-mark">буткемпа</span></h2>
+      </div>
+      <div class="section__head-r section__head-r--tight">
+        <div class="section__rule"></div>
+        <button type="button" class="btn btn--outline" data-modal-open="format">Как устроена неделя</button>
+      </div>
+    </div>
+
+    {/* Пять фактов о формате были пятью серыми плашками — ровно такими же,
+        как карточки занятий ниже. Из-за этого иерархия «модуль → занятие»
+        не читалась: глаз видел десять одинаковых блоков подряд. Теперь это
+        одна строка без заливки, а серый остался только у занятий. */}
+    <dl class="facts">
+      {formatFacts.map((f) => (
+        <div class="facts__item">
+          <dt class="label">{f.label}</dt>
+          <dd class="facts__value">{f.value}</dd>
+        </div>
+      ))}
+    </dl>
+
+    {modules.map((m) => (
+      <div class="module">
+        <div class="module__head">
+          <span class="module__badge">{m.badge}</span>
+          <h3 class="module__title">{m.title}</h3>
+          <span class="module__meta">{m.meta}</span>
+        </div>
+        <div class="program__list">
+          {m.lessons.map((l) => (
+            <article class="lesson lesson--fold">
+              <div class="lesson__head" data-js="lesson-head">
+                <div class="lesson__head-text">
+                  <p class="lesson__tag">Занятие {l.num}</p>
+                  <h4 class="lesson__title">{l.title}</h4>
+                </div>
+                <button type="button" class="lesson__toggle" data-js="lesson-toggle" aria-expanded={l.num === firstLesson ? 'true' : 'false'} aria-controls={`lesson-${l.num}`} aria-label={`Описание занятия ${l.num}`}></button>
+              </div>
+              <div class="lesson__top" id={`lesson-${l.num}`} hidden={l.num !== firstLesson}>
+                <div class="lesson__l">
+                  <ul class="lesson__beats">
+                    {toBeats(l.body).map((beat) => <li>{beat}</li>)}
+                  </ul>
+                </div>
+                <div class="lesson__r">
+                  <div class="lesson__art">
+                    <p class="label">Концепции</p>
+                    <ul class="lesson__concepts">
+                      {l.concepts.split(' · ').map((c) => <li>{c}</li>)}
+                    </ul>
+                  </div>
+                  {lessonFlows[l.num] && (
+                    <div class="lesson__flow">
+                      <div class="lesson__flow-svg" set:html={lessonFlows[l.num]} />
+                      {/* Та же цепочка строкой — для телефона, где схема шириной
+                          468 не помещается и артефакт уезжает за край. */}
+                      <p class="lesson__flow-line">
+                        <span class="lesson__flow-rubric">{lessonChains[l.num].rubric}</span>
+                        {lessonChains[l.num].nodes.map((node, i, all) => (
+                          <>
+                            {i > 0 && <span class="lesson__flow-arrow" aria-hidden="true">→</span>}
+                            <span class={i === all.length - 1 ? 'lesson__flow-node lesson__flow-node--last' : 'lesson__flow-node'}>{node}</span>
+                          </>
+                        ))}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    ))}
+
+    <div class="cta-row" style="justify-content:center">
+      <a class="btn btn--solid" href={managerTgUrl} target="_blank" rel="noopener" data-modal-open="tg">Записаться на буткемп</a>
+    </div>
+  </div>
+</section>
+
+{/* Конец программы: вторая версия полосы, про сам открытый урок и регистрацию перед ним. */}
+<LessonStrip variant="lesson" />
+
+<!-- ============================== ОТЗЫВЫ ============================== -->
+<section class="section section--bg" id="feedback" aria-label="Обратная связь от студентов">
+  <div class="section__inner">
+    <div class="section__head">
+      <div class="section__head-l">
+        <p class="section__eyebrow">[feedback] // Обратная связь</p>
+        <h2 class="section__title">Обратная связь <br> <span class="section__title-mark">от студентов</span></h2>
+      </div>
+    </div>
+
+    <div class="carousel">
+      {/* The list is rendered twice — same idiom as the marquee. The loop wraps
+          by realigning scrollLeft between the two identical halves, which is
+          only invisible if a full copy exists on both sides. Clones are
+          aria-hidden so a screen reader reads each review once. */}
+      <div
+        class="carousel__track"
+        data-js="carousel-track"
+        tabindex="0"
+        role="group"
+        aria-label="Отзывы студентов, прокручивается по горизонтали"
+      >
+        {[...testimonials, ...testimonials].map((t, i) => (
+          <article class="carousel__card" aria-hidden={i >= testimonials.length ? 'true' : undefined}>
+            <p class="carousel__headline">{t.headline}</p>
+            <p class="carousel__quote">{t.quote}</p>
+            <div class="carousel__author">
+              <img class="carousel__avatar" src={t.photo} alt={t.name} loading="lazy" width="96" height="96" />
+              <div>
+                <p class="carousel__name">{t.name}</p>
+                <p class="carousel__role">{t.role}</p>
+              </div>
+            </div>
+            <p class="carousel__meta">{t.stack}</p>
+            <p class="carousel__meta">{t.company}</p>
+          </article>
+        ))}
+      </div>
+      <div class="carousel__controls">
+        <div class="carousel__nav">
+          <button type="button" class="carousel__arrow" data-js="carousel-prev" aria-label="Назад">←</button>
+          <button type="button" class="carousel__arrow" data-js="carousel-next" aria-label="Вперёд">→</button>
+        </div>
+        <a class="btn btn--solid" href={managerTgUrl} target="_blank" rel="noopener" data-modal-open="tg">Стать частью комьюнити</a>
+        <a class="btn btn--outline" href="#">О комьюнити</a>
+      </div>
+    </div>
+
+    <div class="streams-block">
+      <p class="section__eyebrow">[streams] // Все участники</p>
+      <div class="streams-block__nav">
+        {streams.map((s) => (
+          <button type="button" class="streams-block__btn" data-js="stream-btn" data-stream={s.n} disabled={!s.active} aria-expanded={s.n === openStream ? "true" : "false"} aria-controls={s.active ? `stream-panel-${s.n}` : undefined}>
+            <span class="streams-block__btn-label">{s.label}</span>
+            {s.note && <span class="streams-block__btn-note">{s.note}</span>}
+          </button>
+        ))}
+      </div>
+      {streams.filter((s) => s.active).map((s) => (
+        <div class="streams-block__panel" id={`stream-panel-${s.n}`} data-stream-panel={s.n} data-open={s.n === openStream ? "" : undefined}>
+          <div class="streams-block__grid">
+            {s.students.map((st) => (
+              <figure class="student">
+                {st.photo
+                  ? <img class="student__img" src={st.photo} alt={st.name} width="120" height="120" loading="lazy" />
+                  : <span class="student__img student__mono" aria-hidden="true">{initials(st.name)}</span>}
+                <figcaption class="student__name">{st.name}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<!-- ============================== АВТОРЫ И ЭКСПЕРТЫ ============================== -->
+<section class="section section--bg" id="committee" aria-label="Программный комитет">
+  <div class="section__inner">
+    <div class="section__head">
+      <div class="section__head-l">
+        <p class="section__eyebrow">[team] // Авторы и эксперты</p>
+        <h2 class="section__title">Авторы и <br> <span class="section__title-mark">эксперты</span></h2>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      {authors.map((p) => (
+        <article class="card card--grey">
+          <img class="card__photo" src={p.photo} alt={p.name} loading="lazy" width="600" height="600" />
+          <h3 class="card__title">{p.name}</h3>
+          <p class="label label--grey">{p.company}</p>
+          <p class="card__tag">{p.tag}</p>
+          <ul class="card__bio">
+            {p.bio.map((b) => <li>{b}</li>)}
+          </ul>
+        </article>
+      ))}
+    </div>
+
+    <p class="section__eyebrow">[committee] // Комитет</p>
+    <h2 class="section__title">Что говорят о нас <br> <span class="section__title-mark">лидеры индустрии</span></h2>
+    <p class="section__note section__note--lead">
+      Программный комитет — это технические и продуктовые руководители из компаний,
+      которые нанимают таких разработчиков: CTO, CPO, управляющие партнёры. Яндекс,
+      Сбер, Skyeng, МТС, VK, Skillbox. Они разобрали программу буткемпа до запуска
+      потока: что мы даём, в каком порядке и на какой глубине. И подтвердили, что этому
+      стоит учить действующих инженеров. Ниже их оценки: это не отзывы довольных
+      клиентов, а взгляд людей, которые отвечают за результат таких команд у себя.
+    </p>
+    {/* Комитет был разбит на две сетки заголовком «И другие члены»: восемь
+        человек с цитатами и цветными фото, потом четверо чёрно-белых без
+        цитат. Деление читалось как первый и второй сорт, хотя комитет один.
+        Теперь одна сетка из двенадцати, оформление у всех одинаковое.
+        Цитаты есть не у всех, но те, у кого их нет, идут последними —
+        значит последний ряд выходит ровным, а не рваным. */}
+    <div class="grid-4">
+      {[...committee, ...committeeExtra].map((p) => (
+        <article class="card card--grey">
+          <img class="card__photo" src={p.photo} alt={p.name} loading="lazy" width="600" height="600" />
+          <h3 class="card__title">{p.name}</h3>
+          <p class="label label--grey">{p.role}</p>
+          {'quote' in p && p.quote && <p class="card__text">{p.quote}</p>}
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
+
+<!-- ============================== ФОРМАТЫ УЧАСТИЯ ============================== -->
+<section class="section section--white" id="register" aria-label="Форматы участия">
+  <div class="section__inner">
+    <div class="section__head">
+      <div class="section__head-l">
+        <p class="section__eyebrow">[ форматы участия ]</p>
+        <h2 class="section__title">Полное <br> погружение</h2>
+      </div>
+      <div class="section__head-r section__head-r--tight">
+        <div class="section__rule"></div>
+        <p class="section__note">
+          Буткемп построен на практике, это одинаково для любого формата. Разница в том, как проходит участие.
+          Одни учатся и практикуют в своём темпе, другие хотят применять решения сразу на уроке и получать
+          помощь на свой конкретный запрос.
+        </p>
+      </div>
+    </div>
+
+    <div class="pricing__cols">
+      <div class="pricing__included">
+        <div class="cta-row" style="justify-content:space-between;margin-bottom:var(--sp-8)">
+          <h3 class="lesson__title">Полное погружение</h3>
+          <button type="button" class="btn btn--outline" data-modal-open="lesson-format">Как устроен урок</button>
+        </div>
+        <div class="pricing__list">
+          {included.map((i) => (
+            <div class="pricing__item">
+              <span class="pricing__dot" aria-hidden="true">·</span>
+              <p class={i.ink ? 'pricing__item-text pricing__item-text--ink' : 'pricing__item-text'}>{i.text}</p>
+            </div>
+          ))}
+          <div class="pricing__item">
+            <span class="pricing__dot" aria-hidden="true">·</span>
+            <div>
+              <p class="pricing__item-text pricing__item-text--ink"><strong>Материалы курса:</strong></p>
+              <ul class="tabs__bullets" style="margin-top:var(--sp-8)">
+                {materials.map((m) => <li>{m}</li>)}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="pricing__card">
+        <div class="pricing__block">
+          <p class="pricing__amount-tag">Стоимость</p>
+          <p class="pricing__amount">{priceAmount}</p>
+          <p class="pricing__amount-tag">за модуль</p>
+        </div>
+        <div class="pricing__rule"></div>
+        {/* Временно: здесь стоял виджет заявки (data-js="widget-body",
+            data-widget-id={testWidgetId}), сейчас — кнопка менеджеру в Telegram,
+            см. managerTgUrl в program.ts. */}
+        <a class="btn btn--solid btn--wide" href={managerTgUrl} target="_blank" rel="noopener" data-modal-open="tg">Записаться на буткемп</a>
+        {priceFooterNotes.map((n, i) => (
+          <p class={i === 0 ? 'pricing__note pricing__note--ink' : 'pricing__note'}>{n}</p>
+        ))}
+      </aside>
+    </div>
+
+    <div class="plate" style="display:flex;flex-wrap:wrap;gap:var(--sp-24);align-items:center;justify-content:space-between">
+      <p class="plate__text" style="flex:1 1 480px">
+        Для продуктовых и инженерных команд от 3–5 человек мы делаем корпоративный формат:
+        единый план внедрения в SDLC, метрики ROI, отдельный слот под ваш стек.
+      </p>
+      <div class="cta-row" style="width:auto">
+        <a class="btn btn--solid" href={managerTgUrl} target="_blank" rel="noopener" data-modal-open="tg">Подбор формата</a>
+        <a class="btn btn--outline" href="#">Подробнее</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== ТЁМНАЯ СЕКЦИЯ ============================== -->
+<section class="section section--dark" aria-label="Для команд">
+  <div class="section__inner">
+    <div class="section__head">
+      <div class="section__head-l">
+        <p class="section__eyebrow">[teams] // Для команд</p>
+        <h2 class="section__title">Обучение <br> для команды</h2>
+      </div>
+      <div class="section__head-r section__head-r--tight">
+        <div class="section__rule"></div>
+        <p class="section__note">
+          Для продуктовых и инженерных команд от 3–5 человек мы делаем корпоративный
+          формат: единый план внедрения в SDLC, метрики ROI, отдельный слот под ваш стек.
+        </p>
+      </div>
+    </div>
+    <div class="list">
+      <div class="list__row"><p class="list__num">01</p><p class="list__text">Общий язык и единые практики внутри команды</p></div>
+      <div class="list__row"><p class="list__num">02</p><p class="list__text">Разбор ваших реальных репозиториев на занятиях</p></div>
+      <div class="list__row"><p class="list__num">03</p><p class="list__text">Отдельный поток под расписание вашей компании</p></div>
+    </div>
+    <div class="cta-row">
+      <a class="btn btn--mint" href="#" style="width:290px">Обсудить корпоративный формат</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== FAQ ============================== -->
+<section class="section section--white" id="faq" aria-label="Частые вопросы">
+  <div class="section__inner">
+    <div class="section__head">
+      <div class="section__head-l">
+        <p class="section__eyebrow">[faq] // Частые вопросы</p>
+        <h2 class="section__title">FAQ</h2>
+      </div>
+    </div>
+    <div class="faq">
+      {faqItems.map((f, i) => (
+        <div class="faq__row" data-js="faq-row" data-open="false">
+          <button type="button" class="faq__q" data-js="faq-toggle" aria-expanded="false" aria-controls={`faq-a-${i}`}>
+            <span>{f.q}</span>
+            <span class="faq__q-mark" aria-hidden="true">+</span>
+          </button>
+          <p class="faq__a" id={`faq-a-${i}`} hidden>{f.a}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================== МОДАЛКИ ============================== -->
+
+<!-- Как устроена неделя -->
+<div class="modal" data-js="modal" data-modal="format" hidden>
+  <div class="modal__backdrop" data-js="modal-close"></div>
+  <div class="modal__dialog" role="dialog" aria-modal="true" aria-label="Как устроена неделя" tabindex="-1">
+    <button type="button" class="modal__x" data-js="modal-close" aria-label="Закрыть">✕</button>
+    <p class="modal__eyebrow">Формат и нагрузка</p>
+    <h2 class="modal__title">Как устроена неделя на буткемпе</h2>
+    <p class="modal__lead">Формат живой, с записью на случай пропуска. Ниже разложили, сколько времени это занимает на практике.</p>
+
+    <div class="modal__block">
+      <p class="modal__block-h">Обычная неделя</p>
+      <p class="tabs__lead">Основа недели — живой вебинар во вторник. Старт в 18:00/19:00, идёт 2–3 часа, так что закладывать нужно примерно до 20:30/21:30.</p>
+      <p class="tabs__lead">После вебинара остаётся практика на своём проекте: 2–5 часов в неделю, самостоятельно.</p>
+      <p class="tabs__lead">В отдельные недели вебинаров два вместо одного. Тогда живая часть занимает 4–6 часов, практика растёт до верхней границы.</p>
+    </div>
+
+    <div class="modal__block">
+      <p class="modal__block-h">Сколько времени в неделю</p>
+      <div class="seg" data-js="load-toggle" role="tablist" aria-label="Режим нагрузки">
+        <button type="button" class="seg__btn" role="tab" aria-selected="true" data-load="webinar">Только вебинары</button>
+        <button type="button" class="seg__btn" role="tab" aria-selected="false" data-load="full">Вебинары и практика</button>
+      </div>
+      <p class="lesson__title" style="font-size:var(--fs-28)" data-js="load-hours">2–3 часа</p>
+      <p class="tabs__lead" data-js="load-note">в неделю, до 4–6 часов в недели с двумя встречами</p>
+      <p class="tabs__lead">За весь буткемп это примерно 30–45 часов, если ходить на вебинары. С полной практикой выходит больше, до 80–90 часов за три месяца.</p>
+    </div>
+
+    <div class="modal__block">
+      <p class="modal__block-h">Что важно знать про формат</p>
+      {formatCallouts.map((c) => <div class="block"><p class="block__text">{c}</p></div>)}
+    </div>
+  </div>
+</div>
+
+<!-- Как устроен урок -->
+<div class="modal" data-js="modal" data-modal="lesson-format" hidden>
+  <div class="modal__backdrop" data-js="modal-close"></div>
+  <div class="modal__dialog" role="dialog" aria-modal="true" aria-label="Как устроен каждый урок" tabindex="-1">
+    <button type="button" class="modal__x" data-js="modal-close" aria-label="Закрыть">✕</button>
+    <p class="modal__eyebrow">Формат занятий</p>
+    <h2 class="modal__title">Как устроен каждый урок</h2>
+    <div class="grid-2" style="margin-top:var(--sp-28)">
+      {lessonFormatItems.map((f) => (
+        <div class="block">
+          <p class="label">{f.tag}</p>
+          <p class="block__value">{f.title}</p>
+          <p class="block__text">{f.desc}</p>
+        </div>
+      ))}
+    </div>
+    <div class="block" style="margin-top:var(--sp-20)">
+      <p class="block__text">Некоторые уроки проходят <strong style="color:var(--c-ink)">2 раза в неделю</strong>, остальные — раз в неделю. После урока открывается доступ к материалам библиотеки.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Что входит в буткемп -->
+{/* Трим секции «Форматы участия» под диалог. Из секции не приехали три вещи:
+    вводный абзац про разницу форматов (в модалке он отвечает не на тот вопрос,
+    который задали кнопкой), кнопка «Как устроен урок» (увела бы из воронки
+    во вторую модалку) и h2 «Полное погружение» — здесь это подзаголовок
+    к описанию, а заголовок отвечает на вопрос «за что деньги». */}
+<div class="modal modal--product" data-js="modal" data-modal="product" data-widget-id={testWidgetId} hidden>
+  <div class="modal__backdrop" data-js="modal-close"></div>
+  <div class="modal__dialog" role="dialog" aria-modal="true" aria-label="Что входит в буткемп" tabindex="-1">
+    <button type="button" class="modal__x" data-js="modal-close" aria-label="Закрыть">✕</button>
+    <p class="modal__eyebrow">[ форматы участия ] // старт 13 октября</p>
+
+    {/* .modal__body существует только ради мобильной перестановки: на 1024px
+        и ниже виджет должен идти сразу после заголовка модалки, а заголовок —
+        сразу после виджета, перед описанием. Обёртка нужна, чтобы h2 и
+        .pricing__cols попали в один флекс-контекст для order — сам h2
+        снаружи pricing__cols. modal__x и eyebrow внутрь не берём: ✕ держится
+        на sticky+float, а float внутри флекс-контейнера не работает, и мы
+        сломали бы фикс от 2026-09-11 (см. docs/log). */}
+    <div class="modal__body">
+      <h2 class="modal__title">Что входит в буткемп</h2>
+
+      <div class="pricing__cols">
+        <div class="pricing__included">
+          <p class="modal__block-h">Полное погружение</p>
+          <div class="pricing__list">
+            {included.map((i) => (
+              <div class="pricing__item">
+                <span class="pricing__dot" aria-hidden="true">·</span>
+                <p class={i.ink ? 'pricing__item-text pricing__item-text--ink' : 'pricing__item-text'}>{i.text}</p>
+              </div>
+            ))}
+            <div class="pricing__item">
+              <span class="pricing__dot" aria-hidden="true">·</span>
+              <div>
+                <p class="pricing__item-text pricing__item-text--ink"><strong>Материалы курса:</strong></p>
+                <ul class="tabs__bullets" style="margin-top:var(--sp-8)">
+                  {materials.map((m) => <li>{m}</li>)}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="pricing__card">
+          <div class="pricing__block">
+            <p class="pricing__amount-tag">Стоимость</p>
+            <p class="pricing__amount">{priceAmount}</p>
+            <p class="pricing__amount-tag">за модуль</p>
+          </div>
+          <div class="pricing__rule"></div>
+          {/* A/B: виджет заявки вмонтирован прямо сюда вместо кнопки — тестируем
+              заявку в один шаг вместо перехода в отдельную модалку. */}
+          <div class="modal__widget" data-js="widget-body"></div>
+          {priceFooterNotes.map((n, i) => (
+            <p class={i === 0 ? 'pricing__note pricing__note--ink' : 'pricing__note'}>{n}</p>
+          ))}
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Временно: все кнопки записи открывают это окно вместо формы, а уже
+     из него — переход к менеджеру в Telegram. Сами кнопки — ссылки на тот же
+     адрес, так что без JS человек всё равно попадёт к менеджеру. -->
+<div class="modal modal--tg" data-js="modal" data-modal="tg" hidden>
+  <div class="modal__backdrop" data-js="modal-close"></div>
+  <div class="modal__dialog" role="dialog" aria-modal="true" aria-label="Запись через менеджера" tabindex="-1">
+    <button type="button" class="modal__x" data-js="modal-close" aria-label="Закрыть">✕</button>
+    <p class="modal__eyebrow">Запись на буткемп</p>
+    <h2 class="modal__title">Запишем вас через Telegram</h2>
+    <p class="modal__lead">В связи с известными событиями приём заявок через сайт сейчас ограничен. Чтобы записаться или задать вопрос об участии, напишите нашему менеджеру в&nbsp;Telegram — он ответит и всё оформит.</p>
+    <div class="cta-row modal__actions">
+      <a class="btn btn--solid" href={managerTgUrl} target="_blank" rel="noopener" data-js="modal-close">Перейти в Telegram →</a>
+      <button type="button" class="btn btn--outline" data-js="modal-close">Остаться на сайте</button>
+    </div>
+  </div>
+</div>
+
+<!-- Виджет заявки -->
+<div class="modal" data-js="modal" data-modal="widget" hidden>
+  <div class="modal__backdrop" data-js="modal-close"></div>
+  <div class="modal__dialog" role="dialog" aria-modal="true" aria-label="Заявка" tabindex="-1">
+    <button type="button" class="modal__x" data-js="modal-close" aria-label="Закрыть">✕</button>
+    <p class="modal__eyebrow">Заявка</p>
+    <h2 class="modal__title">Форма заявки</h2>
+    <div class="modal__widget" data-js="widget-body"></div>
+  </div>
+</div>
+
+<!-- Регистрация на открытый урок. Открывает кнопка в LessonStrip variant="lesson" (data-modal-open="lesson-register"). -->
+<LessonRegister />
+
+<!-- ============================== FOOTER ============================== -->
+</main>
+
+<footer class="footer">
+  <div class="footer__inner">
+    <div class="footer__top">
+      <div class="footer__brand">
+        <p class="lockup__name">НЭЙШН</p>
+        <p class="footer__brand-text">AI-native буткемп для технических специалистов с продуктовым мышлением. Онлайн буткемп · третий поток · старт 13 октября.</p>
+        <a class="footer__link" href="/">Портал НЭЙШН →</a>
+      </div>
+      <div class="footer__col">
+        <p class="footer__col-title">Навигация</p>
+        {footerNav.map((l) => <a class="footer__link" href={l.href}>{l.label}</a>)}
+      </div>
+      <div class="footer__col">
+        <p class="footer__col-title">Страницы</p>
+        {footerPages.map((l) => <a class="footer__link" href={l.href}>{l.label}</a>)}
+      </div>
+
+      <div class="footer__col">
+        <p class="footer__col-title">Контакт</p>
+        <a class="footer__link" href="#" target="_blank" rel="noopener">Telegram-канал</a>
+        <a class="footer__link" href="https://www.youtube.com/@ai_fucked_up" target="_blank" rel="noopener">YouTube-канал</a>
+        <a class="footer__link" href={managerTgUrl} target="_blank" rel="noopener" data-modal-open="tg">Оставить заявку</a>
+      </div>
+      <div class="footer__col">
+        <p class="footer__col-title">Документы</p>
+        {footerLegal.map((l) => <a class="footer__link" href={l.href}>{l.label}</a>)}
+      </div>
+    </div>
+    <div class="footer__rule"></div>
+    <p class="footer__legal">© 2026 AI DRIVEN РАЗРАБОТКА · 12 НЕДЕЛЬ · MIDDLE &amp; SENIOR · PRODUCTION-READY</p>
+  </div>
+</footer>
+<NoticeBar />
+
+<script>import '../../dev/scripts/common.js';</script>
+<script>import '../../dev/scripts/carousel.js';</script>
+
+<script is:inline>
+  // Phase 0 note: hooks are data-js, never visual classes — a restyle in
+  // Phase C must not be able to break behaviour. See REDESIGN-PLAN.md rule 10.
+
+  // Аккордеон уроков убран: программа показывается целиком. Прятать за кликом
+  // было нечего — под кнопкой лежала ровно та причина, по которой на буткемп
+  // записываются.
+
+  // --- burger ---
+  var burger = document.querySelector('[data-js="burger"]');
+  var burgerPanel = document.getElementById('nav-panel');
+  if (burger && burgerPanel) {
+    burger.addEventListener('click', function () {
+      var open = burger.getAttribute('aria-expanded') === 'true';
+      burger.setAttribute('aria-expanded', String(!open));
+      burgerPanel.classList.toggle('is-open', !open);
+    });
+    // Переход по якорю уводит страницу вниз, а панель прибита к вьюпорту и
+    // осталась бы висеть поверх того, к чему человек только что прыгнул.
+    burgerPanel.addEventListener('click', function (e) {
+      if (!e.target.closest('.nav__link')) return;
+      burger.setAttribute('aria-expanded', 'false');
+      burgerPanel.classList.remove('is-open');
+    });
+  }
+
+  // Быстрая навигация с первого экрана убрана целиком: восемь якорей под
+  // кнопками конкурировали с самими кнопками, а её обработчик был вторым
+  // местом, где страница прокручивалась анимацией.
+
+  // --- tabs (about) ---
+  (function () {
+    var wrap = document.querySelector('[data-js="tabs"]');
+    if (!wrap) return;
+    var btns = wrap.querySelectorAll('[data-js="tabs-btn"]');
+    var panels = wrap.querySelectorAll('.tabs__panel');
+    btns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-tab');
+        btns.forEach(function (b) {
+          var on = b === btn;
+          b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        panels.forEach(function (p) {
+          if (p.getAttribute('data-panel') === id) p.setAttribute('data-active', 'true');
+          else p.removeAttribute('data-active');
+        });
+      });
+    });
+  })();
+
+  // --- prereq popover ---
+  (function () {
+    var btn = document.querySelector('[data-js="popover-toggle"]');
+    var pop = document.getElementById('prereq-hint');
+    if (!btn || !pop) return;
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var open = !pop.hasAttribute('hidden');
+      pop.toggleAttribute('hidden', open);
+      btn.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', function () {
+      if (!pop.hasAttribute('hidden')) { pop.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
+    });
+  })();
+
+  // --- streams (feedback roster) ---
+  // Один поток за раз: клик открывает свой и закрывает остальные.
+  var streamBtns = document.querySelectorAll('[data-js="stream-btn"]:not([disabled])');
+  streamBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-stream');
+      streamBtns.forEach(function (b) { b.setAttribute('aria-expanded', String(b === btn)); });
+      document.querySelectorAll('[data-stream-panel]').forEach(function (p) {
+        p.toggleAttribute('data-open', p.getAttribute('data-stream-panel') === id);
+      });
+    });
+  });
+
+  // --- format modal load toggle ---
+  (function () {
+    var seg = document.querySelector('[data-js="load-toggle"]');
+    if (!seg) return;
+    var hoursEl = document.querySelector('[data-js="load-hours"]');
+    var noteEl = document.querySelector('[data-js="load-note"]');
+    var LOAD = {
+      webinar: { hours: '2–3 часа', note: 'в неделю, до 4–6 часов в недели с двумя встречами' },
+      full: { hours: '4–8 часов', note: 'в неделю, с практикой на своём проекте' },
+    };
+    seg.querySelectorAll('[data-load]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        seg.querySelectorAll('[data-load]').forEach(function (b) { b.setAttribute('aria-selected', 'false'); });
+        btn.setAttribute('aria-selected', 'true');
+        var mode = LOAD[btn.getAttribute('data-load')];
+        if (hoursEl) hoursEl.textContent = mode.hours;
+        if (noteEl) noteEl.textContent = mode.note;
+      });
+    });
+  })();
+</script>
+
+</BaseLayout>

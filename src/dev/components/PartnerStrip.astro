@@ -1,0 +1,98 @@
+---
+// Чёрная полоска под шапкой: курс партнёров CyberED по безопасности ИИ.
+// Стоит на /dev/ и /dev/special/, сразу после </nav>.
+//
+// Липкая, как и шапка: прибита к top:var(--nav-h), поэтому scroll-padding у
+// html растёт на её высоту, пока полоска на странице (см. :has ниже).
+// Высота фиксированная — --promo-h, на телефоне выше: короткий текст может
+// встать в две строки.
+//
+// Крестик убирает полоску из DOM и запоминает это в localStorage. Скрипт
+// инлайновый и стоит сразу за разметкой, поэтому закрытая полоска не мигает
+// при загрузке.
+const href =
+  'https://new.cyber-ed.ru/ai_security/?utm_source=aination&utm_medium=banner&utm_campaign=web0810&utm_content=partner';
+---
+<aside class="promo" id="promo-cybered" aria-label="Курс партнёров">
+  <p class="promo__text">
+    <span class="promo__long"><b>Нужно углубиться в безопасность работы с ИИ?</b> Посмотрите курс наших партнёров</span>
+    <span class="promo__short">Больше о безопасности работы с ИИ</span>
+  </p>
+  <svg class="promo__logo" width="69" height="16" viewBox="0 0 797 184" fill="currentColor" role="img" aria-label="CyberED" xmlns="http://www.w3.org/2000/svg">
+
+    <path d="M144.105 39.6953H166.745L189.385 124.152H200.758L225.504 39.6953H248.144L204.865 183.755H182.225L194.545 144.686H172.958L144.105 39.6953Z" />
+
+    <path d="M253.414 144.697V0.53125H275.001V53.0795H276.054C278.476 50.2362 281.319 47.7088 284.478 45.4974C291.849 40.232 300.063 37.7046 309.013 37.7046C323.124 37.7046 334.918 42.7594 344.289 52.8689C353.661 62.9783 358.4 76.1417 358.4 92.2537C358.4 108.471 353.661 121.634 344.289 131.639C334.918 141.748 323.124 146.803 309.013 146.803C299.957 146.803 291.744 144.275 284.478 139.221C281.214 136.904 278.371 134.271 276.054 131.428H275.001V144.802H253.414V144.697ZM283.109 66.3482C277.633 72.456 275.001 81.0911 275.001 92.1484C275.001 103.206 277.739 111.841 283.109 117.949C288.479 124.056 295.745 127.11 304.801 127.11C314.384 127.11 321.965 124.056 327.441 118.054C332.917 112.051 335.655 103.416 335.655 92.1484C335.655 80.8805 332.917 72.2453 327.441 66.2428C321.965 60.2403 314.384 57.1864 304.801 57.1864C295.745 57.1864 288.585 60.2403 283.109 66.3482Z" />
+
+    <path d="M389.037 137.106C376.951 128.698 369.428 117.002 366.582 101.812C363.732 86.7265 366.41 73.0308 374.611 60.8297C382.813 48.6286 394.298 41.0963 409.062 38.338C423.721 35.5753 437.201 38.3496 449.288 46.7574C461.374 55.1653 468.897 66.8613 471.743 82.0517L473.028 89.1669L389.106 105.068C392.35 113.213 397.265 119.214 404.064 122.976C410.759 126.732 417.983 127.876 425.633 126.403C435.088 124.583 442.199 120.874 446.972 115.065C449.177 112.732 450.979 109.961 452.272 106.748L474.581 102.512C473.02 109.614 470.439 115.936 467.05 121.381C458.073 134.498 445.509 142.618 429.36 145.74C414.495 148.389 401.124 145.514 389.037 137.106ZM386.913 86.848L447.825 76.8404C445.462 70.3128 441.359 65.0829 435.304 61.1421C429.351 57.3108 422.026 56.0573 413.324 57.487C406.003 58.6579 399.857 61.9857 394.895 67.2599C390.038 72.5385 387.342 79.0664 386.913 86.848Z" />
+
+    <path d="M482.551 144.689V39.6978H504.138V55.1779H505.191C506.665 52.3346 508.876 49.5966 511.825 46.964C518.143 41.488 525.514 38.75 534.043 38.75C538.15 38.75 542.257 38.75 546.364 38.75C544.363 45.595 542.257 52.4399 540.256 59.3902C537.834 59.3902 535.412 59.3902 532.99 59.3902C524.566 59.3902 517.722 62.0229 512.246 67.2882C506.77 72.5536 504.138 79.5038 504.138 88.139V144.794H482.551V144.689Z" />
+
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M72.0212 21.5544C44.1204 21.5544 21.5544 44.1004 21.5544 71.8481C21.5544 99.5958 44.1204 122.142 72.0212 122.142C89.837 122.142 105.501 112.942 114.483 99.0437H138.701C127.958 125.236 102.153 143.696 72.0212 143.696C32.2738 143.696 0 111.557 0 71.8481C0 32.1388 32.2738 0 72.0212 0C102.153 0 127.958 18.4608 138.701 44.6529H114.484C105.501 30.7541 89.8372 21.5544 72.0212 21.5544Z" />
+
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M549.625 71.8481C549.625 32.1675 581.793 0 621.473 0L658.937 0V21.5544L621.473 21.5544C593.697 21.5544 571.179 44.0717 571.179 71.8481C571.179 99.6246 593.697 122.142 621.473 122.142H658.937V143.696H621.473C581.793 143.696 549.625 111.529 549.625 71.8481Z" />
+
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M658.934 82.6247H561.426V61.0703H658.934V82.6247Z" />
+
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M694.36 122.141L725.152 122.141C752.928 122.141 775.446 99.6236 775.446 71.8472C775.446 44.0708 752.928 21.5535 725.152 21.5535L694.36 21.5535L694.36 122.141ZM672.805 143.695L672.805 -0.000928542L725.152 -0.000924093C764.833 -0.00092072 797 32.1666 797 71.8472C797 111.528 764.833 143.695 725.152 143.695L672.805 143.695Z" />
+
+  </svg>
+  <a class="promo__btn" href={href} target="_blank" rel="noopener sponsored"><span class="promo__long">Смотреть курс</span><span class="promo__short">Курс</span> →</a>
+  <button class="promo__x" type="button" aria-label="Скрыть">✕</button>
+</aside>
+<script is:inline>
+(function () {
+  var el = document.getElementById('promo-cybered');
+  try { if (localStorage.getItem('promo-cybered') === 'closed') { el.remove(); return; } } catch (e) { /* без хранилища полоска просто видна */ }
+  el.querySelector('.promo__x').addEventListener('click', function () {
+    el.remove();
+    try { localStorage.setItem('promo-cybered', 'closed'); } catch (e) { /* закроется до перезагрузки */ }
+  });
+})();
+</script>
+
+<style>
+  .promo{
+    --promo-h:40px;
+    position:sticky;top:var(--nav-h);
+    /* под панелью бургера (49), над контентом */
+    z-index:calc(var(--z-nav-panel) - 1);
+    height:var(--promo-h);
+    display:flex;align-items:center;justify-content:center;gap:var(--sp-16);
+    padding:0 var(--sp-8) 0 var(--sp-16);
+    background:var(--c-black);color:var(--c-light);
+  }
+  :global(html:has(.promo)){scroll-padding-top:calc(var(--nav-h) + 40px)}
+
+  .promo__text{margin:0;font-family:var(--f-sans);font-size:var(--fs-13);line-height:16px}
+  .promo__short{display:none}
+  /* логотип CyberED, исходник 797×184; 16px по высоте — в линию с кеглем текста.
+     width/height стоят и атрибутами на <svg>: без них, если стиль не доехал,
+     SVG растягивается во всю ширину полоски */
+  .promo__logo{height:16px;width:auto;flex-shrink:0}
+  .promo__btn{
+    font-family:var(--f-mono);font-weight:700;font-size:var(--fs-11);letter-spacing:1px;text-transform:uppercase;white-space:nowrap;
+    padding:var(--sp-6) var(--sp-12);
+    background:var(--c-light);color:var(--c-ink);
+    transition:background-color var(--dur) var(--ease);
+  }
+  .promo__btn:hover{background:var(--c-white)}
+  .promo__x{
+    margin-left:auto;width:32px;height:32px;flex-shrink:0;
+    color:var(--c-muted-on-dark);font-size:var(--fs-14);
+    transition:color var(--dur) var(--ease);
+  }
+  .promo__x:hover{color:var(--c-white)}
+  /* текст, логотип и кнопка — по центру; крестик — у правого края */
+  .promo__text{margin-left:auto}
+
+  @media (max-width:860px){
+    .promo{--promo-h:48px;gap:var(--sp-10)}
+    :global(html:has(.promo)){scroll-padding-top:calc(var(--nav-h) + 48px)}
+    .promo__long{display:none}
+    .promo__short{display:inline}
+    .promo__text{margin-left:0;font-size:var(--fs-12);line-height:15px}
+    .promo__logo{height:14px}
+    .promo__btn{font-size:var(--fs-10);padding:var(--sp-6) var(--sp-8)}
+  }
+</style>
